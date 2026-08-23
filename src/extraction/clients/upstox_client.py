@@ -1,27 +1,26 @@
-from extraction.clients.market_adpter import MarketDataProvider
-from extraction.utils.session import client_session
+from extraction.clients import MarketDataProvider
 import requests
-from extraction.utils.utillities import unzipper
+from extraction.utils import unzipper
 import json
+from extraction.logging import get_logger
+
+logger  =  get_logger(__name__)
 
 class UpstoxAdapter(MarketDataProvider):
-    def __init__(self):
-        self.upstox_client = client_session
-        self.upstox_intraday_url = 'https://api.upstox.com/v3/historical-candle/intraday/%s/minutes/%s'
+    MASTER_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
+    CANDLE_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}"
 
-    def _master_instrument(self, timeout: int = 5):
-        url = 'https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz'
+    def _fetch_master_instrument(self):
         try:
-            response = self.upstox_client.get(url, timeout=timeout)
+            response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
             response.raise_for_status()
             self.master_instrument_data = unzipper(response)
         except requests.RequestException as e:
-            print(f"Error fetching the URL: {e}")
+            logger.error(f"Error fetching the URL: {e}")
         except (OSError, json.JSONDecodeError) as e:
-            print(f"Error decompressing or decoding JSON: {e}")
-            self.data = None
+            logger.error(f"Error decompressing or decoding JSON: {e}")
+            self.master_instrument_data = []
 
     def extract_data(self, instrument: str):
-        # Implement the data extraction logic using the Upstox client
-        data = self.upstox_client.get_data(instrument)
+        data = self.session_client.get(instrument)
         return data
