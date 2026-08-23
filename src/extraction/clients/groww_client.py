@@ -11,12 +11,12 @@ class GrowwAdapter(MarketDataProvider):
         try:
             response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
             response.raise_for_status()
-            self.master_instrument_data = csv_reader(response)
+            return csv_reader(response)
         except requests.RequestException as e:
             print(f"Error fetching the URL: {e}")
         except csv.Error as e:
             print(f"Error parsing CSV response: {e}")
-            self.master_instrument_data = []
+            return []
 
     def extract_data(self, instrument: str):
         data = self.session_client.get(instrument)

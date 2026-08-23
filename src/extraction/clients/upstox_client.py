@@ -2,7 +2,7 @@ from extraction.clients import MarketDataProvider
 import requests
 from extraction.utils import unzipper
 import json
-from extraction.logging import get_logger
+from extraction.observability import get_logger
 
 logger  =  get_logger(__name__)
 
@@ -14,12 +14,12 @@ class UpstoxAdapter(MarketDataProvider):
         try:
             response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
             response.raise_for_status()
-            self.master_instrument_data = unzipper(response)
+            return unzipper(response)
         except requests.RequestException as e:
             logger.error(f"Error fetching the URL: {e}")
         except (OSError, json.JSONDecodeError) as e:
             logger.error(f"Error decompressing or decoding JSON: {e}")
-            self.master_instrument_data = []
+            return []
 
     def extract_data(self, instrument: str):
         data = self.session_client.get(instrument)
