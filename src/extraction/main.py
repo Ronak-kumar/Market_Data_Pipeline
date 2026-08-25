@@ -1,6 +1,8 @@
 
 from extraction.config import app_settings
 import polars as pl
+from extraction.clients.discovery import client_discovery
+from extraction.clients.registry import client_registry
 def get_provider_and_parser(client_name: str):
     if client_name == "Upstox":
         from extraction.parser.base_parser import UpstoxInstrumentParser
@@ -22,6 +24,8 @@ def get_provider_and_parser(client_name: str):
 
 
 if __name__ == "__main__":
+    client_discovery()
+    print(client_registry)
     print(app_settings)
     provider, parser = get_provider_and_parser(app_settings.extractor_settings.client)
     df = parser.parse(provider.master_instrument_data)

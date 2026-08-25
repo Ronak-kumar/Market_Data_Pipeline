@@ -3,10 +3,10 @@ import requests
 from extraction.utils import csv_reader
 import csv
 from extraction.observability import get_logger
-from extraction.clients.registry import ClientRegistry
+from extraction.clients.registry import client_registry
 logger  =  get_logger(__name__)
 
-@ClientRegistry.register("groww")
+@client_registry.register("groww")
 class GrowwAdapter(MarketDataProvider):
     MASTER_URL = "https://growwapi-assets.groww.in/instruments/instrument.csv"
     CANDLE_URL = "https://api.groww.in/v1/historical/candles"

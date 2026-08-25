@@ -3,10 +3,10 @@ import requests
 from extraction.utils import unzipper
 import json
 from extraction.observability import get_logger
-from extraction.clients.registry import ClientRegistry
+from extraction.clients.registry import client_registry
 logger  =  get_logger(__name__)
 
-@ClientRegistry.register("upstox")
+@client_registry.register("upstox")
 class UpstoxAdapter(MarketDataProvider):
     MASTER_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
     CANDLE_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}"
