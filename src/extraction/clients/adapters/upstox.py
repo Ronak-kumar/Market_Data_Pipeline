@@ -3,9 +3,10 @@ import requests
 from extraction.utils import unzipper
 import json
 from extraction.observability import get_logger
-
+from extraction.clients.registry import ClientRegistry
 logger  =  get_logger(__name__)
 
+@ClientRegistry.register("upstox")
 class UpstoxAdapter(MarketDataProvider):
     MASTER_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
     CANDLE_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}"
@@ -19,8 +20,7 @@ class UpstoxAdapter(MarketDataProvider):
             logger.error(f"Error fetching the URL: {e}")
         except (OSError, json.JSONDecodeError) as e:
             logger.error(f"Error decompressing or decoding JSON: {e}")
-            return []
 
-    def extract_data(self, instrument: str):
+    def fetch_instrument(self, instrument: str):
         data = self.session_client.get(instrument)
         return data

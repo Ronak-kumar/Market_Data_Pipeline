@@ -1,5 +1,5 @@
-from .market_adapter import MarketDataProvider
-from .upstox_client import UpstoxAdapter
-from .groww_client import GrowwAdapter
+from .base import MarketDataProvider
+from .adapters.upstox import UpstoxAdapter
+from .adapters.groww import GrowwAdapter
 
 __all__ = ["MarketDataProvider", "UpstoxAdapter", "GrowwAdapter"]

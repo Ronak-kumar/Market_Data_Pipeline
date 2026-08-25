@@ -22,6 +22,6 @@ class MarketDataProvider(ABC):
         ...
 
     @abstractmethod
-    def extract_data(self, instrument:str):
+    def fetch_instrument(self, instrument:str):
         """Fetch historical candles for a resolved instrument_key"""
         ...
