@@ -11,10 +11,10 @@ extractor_settings:
   max_retries: 3
   retry_delay: 5
   processable_segments:
-    - "NSE_INDEX"
-    - "NSE_FO"
-    - "BSE_INDEX"
-    - "BSE_FO"
+    # - "NSE_INDEX"
+    # - "NSE_FO"
+    # - "BSE_INDEX"
+    # - "BSE_FO"
     - "MCX_FO"
-  start_date: "2026-08-11"
-  end_date: "2026-08-11"
+  start_date: "2026-08-25"
+  end_date: "2026-08-25"
