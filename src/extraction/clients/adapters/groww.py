@@ -18,8 +18,10 @@ class GrowwAdapter(MarketDataProvider):
             return csv_reader(response)
         except requests.RequestException as e:
             logger.error(f"Error fetching the URL: {e}")
+            raise
         except csv.Error as e:
             logger.error(f"Error parsing CSV response: {e}")
+            raise
 
     def fetch_instrument(self, instrument: str):
         data = self.session_client.get(instrument)

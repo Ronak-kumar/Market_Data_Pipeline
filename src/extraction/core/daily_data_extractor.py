@@ -43,7 +43,7 @@ class DailyDataExtractor:
                 pbar.set_postfix(key=row["instrument_key"], status="fetching")
 
                 if "fo" in segment.lower():
-                    if not any(exp in row["trading_symbol"] for exp in provider._expiry_suffixe):
+                    if not any(exp in row["trading_symbol"] for exp in provider._expiry_suffixes):
                         continue
 
                 candles, name = provider.fetch_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
@@ -73,13 +73,13 @@ class DailyDataExtractor:
         try:
             provider = client_registry.get(client)()
         except Exception as e:
-            logger.error(f"No client vailable for {client}, Exception cause: {e}")
+            logger.error(f"No client available for {client}, Exception cause: {e}")
 
         parser = UpstoxInstrumentParser()
         try:
             master_instrument = parser.parse(provider.master_instrument_data)
         except Exception as e:
-            logger.error(f"Unable to extract marster instrument for {client}, Exception cause: {e}")
+            logger.error(f"Unable to extract master instrument for {client}, Exception cause: {e}")
 
 
         if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
@@ -97,7 +97,9 @@ class DailyDataExtractor:
                 np.timedelta64(1, "D")
                 )
             for date in dates:
-                provider._expiry_suffixe = provider.get_expiry_suffixes(date)
+                provider._expiry_suffixes = provider.get_expiry_suffixes(date)
                 processed_data = self._processing_day(master_instrument, provider=provider, date=str(date))
 
-DailyDataExtractor(app_settings).process()
+if __name__ == "__main__":
+    main_runner = DailyDataExtractor(app_settings)
+    main_runner.process()

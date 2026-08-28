@@ -10,7 +10,7 @@ class MarketDataProvider(ABC):
     def __init__(self, timeout: int = 5, max_retries: int = 3):
         self.timeout = timeout
         self.max_retries = max_retries
-        self._expiry_suffixes: List[str] = []
+        self._expiry_suffixes = []
         self._reset_client_session()
         self._initialize()
 
