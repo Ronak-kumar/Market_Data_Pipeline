@@ -99,7 +99,7 @@ class MarketDataProvider(ABC):
         ...
 
     @abstractmethod
-    def fetch_instrument(self, instrument: str):
+    def fetch_instrument(self, context: dict, interval: int):
         """Fetch historical candles for a resolved instrument_key"""
         ...
 
