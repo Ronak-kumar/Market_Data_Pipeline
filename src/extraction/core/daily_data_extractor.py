@@ -9,6 +9,7 @@ from tqdm import tqdm
 from datetime import datetime
 import numpy as np
 from pathlib import Path
+from typing import Dict
 
 
 logger = get_logger(__file__)
@@ -18,7 +19,7 @@ class DailyDataExtractor:
         client_discovery()
 
 
-    def _processing_day(self, master_instrument, provider, date):
+    def _processing_day(self, master_instrument, provider, date) -> Dict[str, pl.DataFrame]:
 
         segment_map = {segment: pl.DataFrame() for segment in self._settings_config.extractor_settings.processable_segments}
         if len(segment_map) == 0:
@@ -67,9 +68,7 @@ class DailyDataExtractor:
 
         return segment_map
 
-    def _process_segment(self):
-        pass
-    def process(self):
+    def process(self) -> None:
         client = self._settings_config.extractor_settings.client.lower()
         try:
             provider = client_registry.get(client)()

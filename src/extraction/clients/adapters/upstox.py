@@ -39,8 +39,10 @@ class UpstoxAdapter(MarketDataProvider):
             return unzipper(response)
         except requests.RequestException as e:
             logger.error(f"Error fetching the URL: {e}")
+            raise
         except (OSError, json.JSONDecodeError) as e:
             logger.error(f"Error decompressing or decoding JSON: {e}")
+            raise
 
     def fetch_instrument(self,context: dict, interval:int):
         instrument_key = context["instrument_key"]
