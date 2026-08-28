@@ -6,7 +6,7 @@ from extraction.clients.registry import client_registry
 from extraction.parser.base_parser import UpstoxInstrumentParser
 from extraction.observability import get_logger
 from tqdm import tqdm
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 from pathlib import Path
 from typing import Dict
@@ -50,21 +50,23 @@ class DailyDataExtractor:
                 if candles == None or name == None:
                     continue
 
-                segment_rows.extend([
-                    [
-                        name,
-                        datetime.fromisoformat(row[0]).strftime('%d-%m-%Y'),
-                        datetime.fromisoformat(row[0]).strftime('%H:%M:%S'),
-                        row[1], row[2], row[3], row[4], row[5], row[6]
-                    ]
-                    for row in candles
-                ])
+                for row in candles:
+                    dt = datetime.fromisoformat(row[0])
 
-            segment_map[segment] = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
+                    segment_rows.append([
+                        name,
+                        dt.strftime("%d-%m-%Y"),
+                        dt.strftime("%H:%M:%S"),
+                        *row[1:7],
+                    ])
+
+            segment_frame = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
             
             saving_path = Path(__file__).parent.parent / "cache"/ date 
             saving_path.mkdir(parents=True, exist_ok=True)
-            segment_map[segment].write_parquet(saving_path / f"{segment}.parquet")
+            segment_frame.write_parquet(saving_path / f"{segment}.parquet")
+            segment_map[segment] = saving_path / f"{segment}.parquet"
+
 
         return segment_map
 
@@ -90,15 +92,16 @@ class DailyDataExtractor:
         else:
             start_date = self._settings_config.extractor_settings.start_date
             end_date = self._settings_config.extractor_settings.end_date
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
             
-            dates = np.arange(
-                np.datetime64(start_date),
-                np.datetime64(end_date) + np.timedelta64(1, "D"),
-                np.timedelta64(1, "D")
-                )
+            date_map = {}
             for date in dates:
+                date_str = datetime.strftime(date, "%Y-%m-%d")
                 provider._expiry_suffixes = provider.get_expiry_suffixes(date)
-                processed_data = self._processing_day(master_instrument, provider=provider, date=str(date))
+                processed_data = self._processing_day(master_instrument, provider=provider, date=str(date_str))
+                date_map[date] = processed_data
 
 if __name__ == "__main__":
     main_runner = DailyDataExtractor(app_settings)

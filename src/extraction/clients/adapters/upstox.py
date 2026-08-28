@@ -17,12 +17,15 @@ class UpstoxAdapter(MarketDataProvider):
 
     def _load_token(self) -> None:
         access_token_path = Path(__file__).parents[2] / "access_token" / "upstox.json"
+        if not access_token_path.exists:
+            raise ValueError("Access token file not found")
+    
         with access_token_path.open("r", encoding="utf-8") as file:
             data = json.load(file)
 
         token = data.get("access_token")
 
-        if not token:
+        if not token or token == "":
             raise ValueError("Access token not found in token file")
 
         headers = {
@@ -140,7 +143,7 @@ class UpstoxAdapter(MarketDataProvider):
         
         if "fo" in segment:
             parts = trading_symbol.split()
-            if len(parts) < 6:
+            if len(parts) < 5:
                 raise ValueError(f"FO trading_symbol format unexpected: '{trading_symbol}' (expected 6+ parts)")
             # Format: SYMBOL EXPIRY STRIKE OPTION_TYPE (e.g., "NIFTY 24AUG 5000 CE")
             # parts[0]=symbol, parts[1]=expiry, parts[2]=strike, parts[3]=type
