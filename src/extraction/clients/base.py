@@ -104,6 +104,16 @@ class MarketDataProvider(ABC):
         ...
 
     @abstractmethod
+    def fetch_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
+        """Fetch historical candles for a resolved instrument_key"""
+        ...
+
+    @abstractmethod
+    def fetch_expired_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
+        """Fetch historical candles for a resolved instrument_key"""
+        ...
+
+    @abstractmethod
     def _normalize_response(self, response: requests.Response, context: dict):
         """Normalize response from all adapters - MUST raise on contract violation"""
         ...

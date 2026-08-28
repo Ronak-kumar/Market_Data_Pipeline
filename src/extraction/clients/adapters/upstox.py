@@ -13,7 +13,8 @@ logger = get_logger(__name__)
 class UpstoxAdapter(MarketDataProvider):
     MASTER_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
     INTRADAY_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}"
-    HISTORICAL_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/1/{end_date}/{start_date}"
+    HISTORICAL_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}/{end_date}/{start_date}"
+    EXPIRED_HISTORICAL_URL = "https://api.upstox.com/v2/expired-instruments/historical-candle/{instrument_key}/{interval}minute/{end_date}/{start_date}"
 
     def _load_token(self) -> None:
         access_token_path = Path(__file__).parents[2] / "access_token" / "upstox.json"
@@ -60,6 +61,14 @@ class UpstoxAdapter(MarketDataProvider):
     def fetch_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
         instrument_key = context["instrument_key"]
         url = self.HISTORICAL_URL.format(instrument_key=instrument_key, interval=interval, end_date=end_date, start_date=start_date)
+        response = self._retry_policy(url=url, logger=logger)
+        if response is None:
+            return None, None
+        return self._normalize_response(response=response, context=context)
+
+    def fetch_expired_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
+        instrument_key = context["instrument_key"]
+        url = self.EXPIRED_HISTORICAL_URL.format(instrument_key=instrument_key, interval=interval, end_date=end_date, start_date=start_date)
         response = self._retry_policy(url=url, logger=logger)
         if response is None:
             return None, None

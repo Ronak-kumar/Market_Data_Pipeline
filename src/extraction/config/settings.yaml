@@ -9,7 +9,7 @@ extractor_settings:
   client: "Upstox"
   interval: 1
   max_retries: 3
-  retry_delay: 5
+  expiry_duration: 3
   processable_segments:
     # - "NSE_INDEX"
     # - "NSE_FO"

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import numpy as np
 from pathlib import Path
 from typing import Dict
+from zoneinfo import ZoneInfo
 
 
 logger = get_logger(__file__)
@@ -19,7 +20,7 @@ class DailyDataExtractor:
         client_discovery()
 
 
-    def _processing_day(self, master_instrument, provider, date) -> Dict[str, pl.DataFrame]:
+    def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
 
         segment_map = {segment: pl.DataFrame() for segment in self._settings_config.extractor_settings.processable_segments}
         if len(segment_map) == 0:
@@ -46,7 +47,15 @@ class DailyDataExtractor:
                     if not any(exp in row["trading_symbol"] for exp in provider._expiry_suffixes):
                         continue
 
-                candles, name = provider.fetch_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
+                ### Implementation Variation (Intraday, Historical, Expired Historical)
+                expiry_date = datetime.fromtimestamp(row["expiry"] / 1000, tz=ZoneInfo("Asia/Kolkata"),).date()
+                if datetime.now().date() > expiry_date:
+                    candles, name = provider.fetch_expired_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
+                elif variation == "intraday":
+                    candles, name = provider.fetch_instrument(context = row, interval = data_fetching_interval)
+                elif variation == "Historical":
+                    candles, name = provider.fetch_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
+
                 if candles == None or name == None:
                     continue
 
@@ -87,7 +96,7 @@ class DailyDataExtractor:
         if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
             process_able_date = datetime.now()
             date_str = process_able_date.strftime("%Y-%m-%d")
-            self._processing_day(master_instrument, provider=provider, date=date_str)
+            self._processing_day(master_instrument, provider=provider, date=date_str, variation="intraday")
 
         else:
             start_date = self._settings_config.extractor_settings.start_date
@@ -95,12 +104,12 @@ class DailyDataExtractor:
             start = datetime.strptime(start_date, "%Y-%m-%d").date()
             end = datetime.strptime(end_date, "%Y-%m-%d").date()
             dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-            
+
             date_map = {}
             for date in dates:
                 date_str = datetime.strftime(date, "%Y-%m-%d")
-                provider._expiry_suffixes = provider.get_expiry_suffixes(date)
-                processed_data = self._processing_day(master_instrument, provider=provider, date=str(date_str))
+                provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=date, months_ahead=self._settings_config.extractor_settings.expiry_duration)
+                processed_data = self._processing_day(master_instrument, provider=provider, date=str(date_str), variation="historical")
                 date_map[date] = processed_data
 
 if __name__ == "__main__":
