@@ -19,10 +19,10 @@ class MarketDataProvider(ABC):
             (process_able_date + relativedelta(months=i)).strftime("%b %y").upper()
             for i in range(months_ahead)]
 
-    def _initialize(self):
+    def _initialize(self) -> None:
         self.master_instrument_data = self._fetch_master_instrument()
 
-    def _reset_client_session(self):
+    def _reset_client_session(self) -> None:
         self.session_client = get_session()
 
     def _retry_policy(self, url:str, logger):

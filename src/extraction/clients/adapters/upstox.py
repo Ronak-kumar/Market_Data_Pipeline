@@ -4,8 +4,9 @@ from extraction.utils import unzipper
 import json
 from extraction.observability import get_logger
 from extraction.clients.registry import client_registry
-logger  =  get_logger(__name__)
 from pathlib import Path
+logger  =  get_logger(__name__)
+
 
 @client_registry.register("upstox")
 class UpstoxAdapter(MarketDataProvider):

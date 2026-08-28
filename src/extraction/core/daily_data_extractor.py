@@ -20,13 +20,13 @@ class DailyDataExtractor:
 
     def _processing_day(self, master_instrument, provider, date):
 
-        segmanet_map = {segment: pl.DataFrame() for segment in self._settings_config.extractor_settings.processable_segments}
-        if len(segmanet_map) == 0:
+        segment_map = {segment: pl.DataFrame() for segment in self._settings_config.extractor_settings.processable_segments}
+        if len(segment_map) == 0:
             logger.warning(f"No segment selected for processing please select segments and try again")
 
 
         data_fetching_interval = self._settings_config.extractor_settings.interval
-        for segment, _ in segmanet_map.items():
+        for segment, _ in segment_map.items():
             logger.info(f"Processing segment {segment}")
             segment_df = master_instrument.filter(pl.col("segment") == segment)
             pbar = tqdm(
@@ -59,13 +59,13 @@ class DailyDataExtractor:
                     for row in candles
                 ])
 
-            segmanet_map[segment] = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
+            segment_map[segment] = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
             
             saving_path = Path(__file__).parent.parent / "cache"/ date 
             saving_path.mkdir(parents=True, exist_ok=True)
-            segmanet_map[segment].write_parquet(saving_path / f"{segment}.parquet")
+            segment_map[segment].write_parquet(saving_path / f"{segment}.parquet")
 
-        return segmanet_map
+        return segment_map
 
     def _process_segment(self):
         pass
@@ -100,9 +100,5 @@ class DailyDataExtractor:
             for date in dates:
                 provider._expiry_suffixe = provider.get_expiry_suffixes(date)
                 processed_data = self._processing_day(master_instrument, provider=provider, date=str(date))
-
-        
-                        
-
 
 DailyDataExtractor(app_settings).process()
