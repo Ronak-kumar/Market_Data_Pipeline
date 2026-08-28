@@ -110,7 +110,7 @@ class UpstoxAdapter(MarketDataProvider):
             raise ValueError(f"Expected 'candles' to be list, got {type(candles).__name__}")
 
         if not candles:
-            logger.warning(f"No candles returned for {context.get('instrument_key')}")
+            # logger.warning(f"No candles returned for {context.get('instrument_key')}")
             return None, None
 
         # 5. Validate each candle structure - Upstox format: [timestamp, open, high, low, close, volume, oi]

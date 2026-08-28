@@ -53,7 +53,7 @@ class DailyDataExtractor:
                     candles, name = provider.fetch_expired_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
                 elif variation == "intraday":
                     candles, name = provider.fetch_instrument(context = row, interval = data_fetching_interval)
-                elif variation == "Historical":
+                elif variation == "historical":
                     candles, name = provider.fetch_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
 
                 if candles == None or name == None:
@@ -85,13 +85,14 @@ class DailyDataExtractor:
             provider = client_registry.get(client)()
         except Exception as e:
             logger.error(f"No client available for {client}, Exception cause: {e}")
+            return
 
         parser = UpstoxInstrumentParser()
         try:
             master_instrument = parser.parse(provider.master_instrument_data)
         except Exception as e:
             logger.error(f"Unable to extract master instrument for {client}, Exception cause: {e}")
-
+            return
 
         if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
             process_able_date = datetime.now()
