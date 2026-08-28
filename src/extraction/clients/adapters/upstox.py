@@ -30,6 +30,7 @@ class UpstoxAdapter(MarketDataProvider):
         self.HEADERS = headers
 
     def _fetch_master_instrument(self):
+        """ Normalize master instrument for all the adapters """
         try:
             self._load_token()
             response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
@@ -40,12 +41,44 @@ class UpstoxAdapter(MarketDataProvider):
         except (OSError, json.JSONDecodeError) as e:
             logger.error(f"Error decompressing or decoding JSON: {e}")
 
-    def fetch_instrument(self, instrument_key: str, interval:int):
+    def fetch_instrument(self,context: dict, interval:int):
+        instrument_key = context["instrument_key"]
         URL = self.INTRADAY_URL.format(instrument_key=instrument_key, interval=interval)
-        response = self.session_client.get(URL, headers=self.HEADERS, timeout=self.timeout)
-        return response
+        response = self._retry_policy(url=URL, logger=logger)
+        response = self._retry_policy(url=URL, logger=logger)
+        if response == None:
+            return None, None
+        return self._normalize_response(response=response, context=context)
 
-    def fetch_historical_instrument(self, instrument_key: str, interval:int, start_date: str, end_date: str):
+
+    def fetch_historical_instrument(self, context: dict, interval:int, start_date: str, end_date: str):
+        instrument_key = context["instrument_key"]
         URL = self.HISTORICAL_URL.format(instrument_key=instrument_key, interval=interval, end_date=end_date, start_date=start_date)
-        response = self.session_client.get(URL, headers=self.HEADERS, timeout=self.timeout)
-        return response
+        response = self._retry_policy(url=URL, logger=logger)
+        if response == None:
+            return None, None
+        return self._normalize_response(response=response, context=context)
+
+    def _normalize_response(self, response: requests.Response, context:dict):
+        """ To get normalize response from all the adapters """
+        if "fo" in context["segment"].lower():
+            try:
+                a = context["trading_symbol"].split()
+                name = a[0] + a[-3] + a[-2] + a[-1] + a[1] + a[2]
+            except IndexError:
+                return None, None
+        elif "index" in context["segment"].lower():
+            name = context["name"]
+            name = name.upper()
+        else:
+            name = context["name"] + ".NSE_IDX"
+            name = name.upper()
+
+        try:
+            candles = response.json()["data"]["candles"]
+            if not candles:
+                return None, None
+        except Exception:
+            return None, None
+
+        return candles, name

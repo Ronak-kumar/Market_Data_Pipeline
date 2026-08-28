@@ -16,5 +16,5 @@ extractor_settings:
     # - "BSE_INDEX"
     # - "BSE_FO"
     - "MCX_FO"
-  start_date: "2026-08-25"
-  end_date: "2026-08-25"
+  start_date: "2026-08-24"
+  end_date: "2026-08-24"

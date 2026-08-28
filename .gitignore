@@ -2,6 +2,8 @@
 /logs
 uv.lock
 TODO.md
+src/extraction/cache/*
+src/extraction/access_token/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

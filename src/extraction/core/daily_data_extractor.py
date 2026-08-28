@@ -7,9 +7,9 @@ from extraction.parser.base_parser import UpstoxInstrumentParser
 from extraction.observability import get_logger
 from tqdm import tqdm
 from datetime import datetime
-import requests
-import time as tm
 import numpy as np
+from pathlib import Path
+
 
 logger = get_logger(__file__)
 class DailyDataExtractor:
@@ -26,9 +26,8 @@ class DailyDataExtractor:
 
 
         data_fetching_interval = self._settings_config.extractor_settings.interval
-        for segment, df in segmanet_map.items():
+        for segment, _ in segmanet_map.items():
             logger.info(f"Processing segment {segment}")
-
             segment_df = master_instrument.filter(pl.col("segment") == segment)
             pbar = tqdm(
                         segment_df.iter_rows(named=True),
@@ -40,53 +39,14 @@ class DailyDataExtractor:
 
             segment_rows = []
             for row in pbar:
-                pbar.set_postfix(
-                key=row["instrument_key"],
-                status="fetching")
-
-                instrument_key = row["instrument_key"]
-                retries = provider.max_retries
-                for attempt in range(1, retries + 1):
-                    try:
-                        response = provider.fetch_historical_instrument(instrument_key = instrument_key, interval = data_fetching_interval, start_date=date, end_date=date)
-
-                        if response.status_code == 200:
-                            break
-
-                        if response.status_code in (400, 401, 403, 404):
-                            logger.warning(
-                                f"[FATAL] {instrument_key} | {response.status_code} | {response.text}"
-                            )
-                            break
-
-                        logger.warning(f"[RETRY] {instrument_key} | {response.status_code} | attempt {attempt}/{retries}")
-
-                    except requests.exceptions.Timeout:
-                        tm.sleep((attempt * 2))
-                        logger.warning(f"[TIMEOUT] {instrument_key} | attempt {attempt}/{retries}")
+                pbar.set_postfix(key=row["instrument_key"], status="fetching")
 
                 if "fo" in segment.lower():
-                    try:
-                        a = row["trading_symbol"].split()
-                        name = a[0] + a[-3] + a[-2] + a[-1] + a[1] + a[2]
-                        if not any(exp in row["trading_symbol"] for exp in provider._expiry_suffixe):
-                            tm.sleep(0.03)
-                            continue
-                    except IndexError:
+                    if not any(exp in row["trading_symbol"] for exp in provider._expiry_suffixe):
                         continue
-                elif "index" in segment.lower():
-                    name = row["name"]
-                    name = name.upper()
-                else:
-                    name = row["name"] + ".NSE_IDX"
-                    name = name.upper()
 
-                try:
-                    candles = response.json()["data"]["candles"]
-                    if not candles:
-                        tm.sleep(0.03)
-                        continue
-                except Exception:
+                candles, name = provider.fetch_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
+                if candles == None or name == None:
                     continue
 
                 segment_rows.extend([
@@ -100,6 +60,10 @@ class DailyDataExtractor:
                 ])
 
             segmanet_map[segment] = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
+            
+            saving_path = Path(__file__).parent.parent / "cache"/ date 
+            saving_path.mkdir(parents=True, exist_ok=True)
+            segmanet_map[segment].write_parquet(saving_path / f"{segment}.parquet")
 
         return segmanet_map
 
@@ -136,7 +100,6 @@ class DailyDataExtractor:
             for date in dates:
                 provider._expiry_suffixe = provider.get_expiry_suffixes(date)
                 processed_data = self._processing_day(master_instrument, provider=provider, date=str(date))
-                print()
 
         
                         
