@@ -11,6 +11,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict
 from zoneinfo import ZoneInfo
+from extraction.utils.aws_s3_manager import S3BucketManager
 
 
 logger = get_logger(__file__)
@@ -18,6 +19,7 @@ class DailyDataExtractor:
     def __init__(self, app_settings):
         self._settings_config = app_settings
         client_discovery()
+        self._s3_obkect = S3BucketManager()
 
 
     def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
@@ -48,8 +50,7 @@ class DailyDataExtractor:
                         continue
 
                 ### Implementation Variation (Intraday, Historical, Expired Historical)
-                expiry_date = datetime.fromtimestamp(row["expiry"] / 1000, tz=ZoneInfo("Asia/Kolkata"),).date()
-                if datetime.now().date() > expiry_date:
+                if row["expiry"] != None and datetime.now().date() > datetime.fromtimestamp(row["expiry"] / 1000, tz=ZoneInfo("Asia/Kolkata"),).date():
                     candles, name = provider.fetch_expired_historical_instrument(context = row, interval = data_fetching_interval, start_date=date, end_date=date)
                 elif variation == "intraday":
                     candles, name = provider.fetch_instrument(context = row, interval = data_fetching_interval)
@@ -71,7 +72,7 @@ class DailyDataExtractor:
 
             segment_frame = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
             
-            saving_path = Path(__file__).parent.parent / "cache"/ date 
+            saving_path = Path(__file__).parent.parent / "cache" / self._settings_config.extractor_settings.client.lower() / date 
             saving_path.mkdir(parents=True, exist_ok=True)
             segment_frame.write_parquet(saving_path / f"{segment}.parquet")
             segment_map[segment] = saving_path / f"{segment}.parquet"
@@ -97,6 +98,7 @@ class DailyDataExtractor:
         if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
             process_able_date = datetime.now()
             date_str = process_able_date.strftime("%Y-%m-%d")
+            provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=process_able_date.date(), months_ahead=self._settings_config.extractor_settings.expiry_duration)
             self._processing_day(master_instrument, provider=provider, date=date_str, variation="intraday")
 
         else:
@@ -112,6 +114,14 @@ class DailyDataExtractor:
                 provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=date, months_ahead=self._settings_config.extractor_settings.expiry_duration)
                 processed_data = self._processing_day(master_instrument, provider=provider, date=str(date_str), variation="historical")
                 date_map[date] = processed_data
+
+                for date, filepath in  processed_data.items():
+                    try:
+                        self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                        logger.warning(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
+                    except Exception as e:
+                        logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")
+
 
 if __name__ == "__main__":
     main_runner = DailyDataExtractor(app_settings)

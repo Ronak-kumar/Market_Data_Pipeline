@@ -6,3 +6,4 @@ pandas==2.3.3
 polars==1.43.2
 pyarrow==25.0.1
 tqdm>=4.66,<5
+"boto3[crt]"==1.43.83

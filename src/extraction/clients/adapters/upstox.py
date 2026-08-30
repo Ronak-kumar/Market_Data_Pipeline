@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 @client_registry.register("upstox")
 class UpstoxAdapter(MarketDataProvider):
     MASTER_URL = "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
-    INTRADAY_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}"
+    INTRADAY_URL = "https://api.upstox.com/v3/historical-candle/intraday/{instrument_key}/minutes/{interval}"
     HISTORICAL_URL = "https://api.upstox.com/v3/historical-candle/{instrument_key}/minutes/{interval}/{end_date}/{start_date}"
     EXPIRED_HISTORICAL_URL = "https://api.upstox.com/v2/expired-instruments/historical-candle/{instrument_key}/{interval}minute/{end_date}/{start_date}"
 

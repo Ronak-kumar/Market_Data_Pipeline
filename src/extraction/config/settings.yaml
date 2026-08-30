@@ -11,10 +11,10 @@ extractor_settings:
   max_retries: 3
   expiry_duration: 3
   processable_segments:
-    # - "NSE_INDEX"
-    # - "NSE_FO"
-    # - "BSE_INDEX"
-    # - "BSE_FO"
+    - "NSE_INDEX"
+    - "NSE_FO"
+    - "BSE_INDEX"
+    - "BSE_FO"
     - "MCX_FO"
-  start_date: "2026-08-24"
-  end_date: "2026-08-24"
+  start_date: "2026-08-28"
+  end_date: "2026-08-28"
