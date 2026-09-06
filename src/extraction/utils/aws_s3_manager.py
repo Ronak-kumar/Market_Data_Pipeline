@@ -1,6 +1,7 @@
 import boto3
 import boto3.session
 import requests
+from pathlib import Path
 
 class S3BucketManager:
     def __init__(self):
@@ -12,14 +13,13 @@ class S3BucketManager:
         self.s3_client = self.my_session.client("s3")
         self.s3 = self.my_session.resource('s3')
 
-    def upload_files(self, filepath: str, bucket_name: str, destination_prefix: str) -> requests.Response:
+    def upload_files(self, filepath: Path, bucket_name: str, destination_prefix: str) -> None:
         destination_postfix = "/".join(filepath.parts[-2:])
-        response = self.s3_client.upload_file(
-            filepath,
+        self.s3_client.upload_file(
+            str(filepath),
             bucket_name,
-            destination_prefix + destination_postfix,)
+            f"{destination_prefix.rstrip('/')}/{destination_postfix}")
 
-        return response
 
 
 

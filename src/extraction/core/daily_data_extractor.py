@@ -7,7 +7,6 @@ from extraction.parser.base_parser import UpstoxInstrumentParser
 from extraction.observability import get_logger
 from tqdm import tqdm
 from datetime import datetime, timedelta
-import numpy as np
 from pathlib import Path
 from typing import Dict
 from zoneinfo import ZoneInfo
@@ -86,20 +85,30 @@ class DailyDataExtractor:
             provider = client_registry.get(client)()
         except Exception as e:
             logger.error(f"No client available for {client}, Exception cause: {e}")
-            return
+            return {}
 
         parser = UpstoxInstrumentParser()
         try:
             master_instrument = parser.parse(provider.master_instrument_data)
         except Exception as e:
             logger.error(f"Unable to extract master instrument for {client}, Exception cause: {e}")
-            return
+            return {}
+
+        date_map = {}
 
         if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
             process_able_date = datetime.now()
             date_str = process_able_date.strftime("%Y-%m-%d")
             provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=process_able_date.date(), months_ahead=self._settings_config.extractor_settings.expiry_duration)
-            self._processing_day(master_instrument, provider=provider, date=date_str, variation="intraday")
+            processed_data = self._processing_day(master_instrument, provider=provider, date=date_str, variation="intraday")
+            date_map[process_able_date] = processed_data
+
+            for date, filepath in processed_data.items():
+                try:
+                    self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                    logger.info(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
+                except Exception as e:
+                    logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")
 
         else:
             start_date = self._settings_config.extractor_settings.start_date
@@ -108,7 +117,6 @@ class DailyDataExtractor:
             end = datetime.strptime(end_date, "%Y-%m-%d").date()
             dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
 
-            date_map = {}
             for date in dates:
                 date_str = datetime.strftime(date, "%Y-%m-%d")
                 provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=date, months_ahead=self._settings_config.extractor_settings.expiry_duration)
@@ -118,10 +126,11 @@ class DailyDataExtractor:
                 for date, filepath in  processed_data.items():
                     try:
                         self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
-                        logger.warning(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
+                        logger.info(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
                     except Exception as e:
                         logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")
 
+        return date_map
 
 if __name__ == "__main__":
     main_runner = DailyDataExtractor(app_settings)
