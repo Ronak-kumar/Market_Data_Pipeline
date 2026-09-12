@@ -4,6 +4,7 @@ uv.lock
 TODO.md
 src/extraction/cache/*
 src/extraction/access_token/*
+/temp/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

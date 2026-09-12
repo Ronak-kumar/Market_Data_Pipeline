@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from extraction.utils import get_session
+from shared.utils import get_session
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from typing import List, Optional

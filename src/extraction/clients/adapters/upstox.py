@@ -1,8 +1,8 @@
 from extraction.clients import MarketDataProvider
 import requests
-from extraction.utils import unzipper
+from shared.utils import unzipper
 import json
-from extraction.observability import get_logger
+from shared.observability import get_logger
 from extraction.clients.registry import client_registry
 from pathlib import Path
 

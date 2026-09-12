@@ -1,6 +1,5 @@
 import boto3
 import boto3.session
-import requests
 from pathlib import Path
 
 class S3BucketManager:
@@ -23,4 +22,4 @@ class S3BucketManager:
 
 
 
-# S3BucketManager().upload_files(filepath="D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/2026-08-25/MCX_FO.parquet", bucket_name="marketdata-pipeline", destination_prefix="bronze_cache_storage_market_data/upstox/")
+# S3BucketManager().upload_files(filepath="D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/shared/utils/cache/2026-08-25/MCX_FO.parquet", bucket_name="marketdata-pipeline", destination_prefix="bronze_cache_storage_market_data/upstox/")

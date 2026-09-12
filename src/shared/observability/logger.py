@@ -1,10 +1,10 @@
 import logging
 
-from extraction.observability.handler import (
+from shared.observability.handler import (
     create_console_handler,
     create_file_handler,
 )
-from extraction.observability.logging_config import logging_settings
+from shared.observability.logging_config import logging_settings
 
 
 def get_logger(name: str | None = None) -> logging.Logger:

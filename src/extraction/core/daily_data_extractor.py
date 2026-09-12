@@ -1,16 +1,16 @@
 
-from extraction.config import app_settings
+from shared.config import app_settings
 import polars as pl
 from extraction.clients.discovery import client_discovery
 from extraction.clients.registry import client_registry
 from extraction.parser.base_parser import UpstoxInstrumentParser
-from extraction.observability import get_logger
+from shared.observability import get_logger
 from tqdm import tqdm
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict
 from zoneinfo import ZoneInfo
-from extraction.utils.aws_s3_manager import S3BucketManager
+from shared.utils.aws_s3_manager import S3BucketManager
 
 
 logger = get_logger(__file__)
@@ -18,7 +18,7 @@ class DailyDataExtractor:
     def __init__(self, app_settings):
         self._settings_config = app_settings
         client_discovery()
-        self._s3_obkect = S3BucketManager()
+        self._s3_object = S3BucketManager()
 
 
     def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
@@ -125,7 +125,7 @@ class DailyDataExtractor:
 
                 for date, filepath in  processed_data.items():
                     try:
-                        self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                        # self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
                         logger.info(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
                     except Exception as e:
                         logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")

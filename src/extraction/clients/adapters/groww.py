@@ -1,8 +1,8 @@
 from extraction.clients import MarketDataProvider
 import requests
-from extraction.utils import csv_reader
+from shared.utils import csv_reader
 import csv
-from extraction.observability import get_logger
+from shared.observability import get_logger
 from extraction.clients.registry import client_registry
 logger  =  get_logger(__name__)
 

@@ -1,6 +1,4 @@
 import requests
-from urllib3.util.retry import Retry
-from functools import lru_cache
 
 def get_session() -> requests.Session :
     session = requests.Session()

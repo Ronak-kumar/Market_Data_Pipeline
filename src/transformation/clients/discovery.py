@@ -1,4 +1,4 @@
-from extraction.clients import adapters
+from transformation.clients import adapters
 from shared.utils import discover_modules
 
 
