@@ -2,8 +2,8 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-from extraction.observability.formatter import JsonFormatter, TextFormatter
-from extraction.observability.logging_config import logging_settings
+from shared.observability.formatter import JsonFormatter, TextFormatter
+from shared.observability.logging_config import logging_settings
 
 
 def create_console_handler() -> logging.Handler:

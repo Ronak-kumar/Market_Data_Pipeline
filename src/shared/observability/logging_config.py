@@ -1,7 +1,7 @@
 from functools import lru_cache
-from extraction.utils.yaml_loader import load_yaml_config
+from shared.utils.yaml_loader import load_yaml_config
 from pathlib import Path
-from extraction.observability.logging_model import LoggingConfig
+from shared.observability.logging_model import LoggingConfig
 
 LOGGING_PATH  = Path(__file__).resolve().parent
 LOGGING_YAML_PATH = LOGGING_PATH / "logging.yaml"

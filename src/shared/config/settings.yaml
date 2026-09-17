@@ -7,12 +7,14 @@ application:
 
 extractor_settings:
   client: "Upstox"
+  interval: 1
   max_retries: 3
-  retry_delay: 5
+  expiry_duration: 3
   processable_segments:
     - "NSE_INDEX"
     - "NSE_FO"
     - "BSE_INDEX"
     - "BSE_FO"
     - "MCX_FO"
-  access_token_path: ""
+  start_date: "2026-09-11"
+  end_date: "2026-09-11"

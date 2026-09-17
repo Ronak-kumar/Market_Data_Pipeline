@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
-from extraction.models import AppSettings
-from extraction.utils import load_yaml_config
+from shared.config.settings_model import AppSettings
+from shared.utils import load_yaml_config
 
 @lru_cache
 def get_application_settings(YAML_PATH=None) -> AppSettings:

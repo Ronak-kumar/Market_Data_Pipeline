@@ -1,8 +1,12 @@
 from extraction.clients import MarketDataProvider
 import requests
-from extraction.utils import csv_reader
+from shared.utils import csv_reader
 import csv
+from shared.observability import get_logger
+from extraction.clients.registry import client_registry
+logger  =  get_logger(__name__)
 
+@client_registry.register("groww")
 class GrowwAdapter(MarketDataProvider):
     MASTER_URL = "https://growwapi-assets.groww.in/instruments/instrument.csv"
     CANDLE_URL = "https://api.groww.in/v1/historical/candles"
@@ -13,12 +17,13 @@ class GrowwAdapter(MarketDataProvider):
             response.raise_for_status()
             return csv_reader(response)
         except requests.RequestException as e:
-            print(f"Error fetching the URL: {e}")
+            logger.error(f"Error fetching the URL: {e}")
+            raise
         except csv.Error as e:
-            print(f"Error parsing CSV response: {e}")
-            return []
+            logger.error(f"Error parsing CSV response: {e}")
+            raise
 
-    def extract_data(self, instrument: str):
+    def fetch_instrument(self, instrument: str):
         data = self.session_client.get(instrument)
         return data
 
