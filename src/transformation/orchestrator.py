@@ -1,6 +1,6 @@
 import datetime
 from pathlib import WindowsPath
-from transformation.clients.adapters.upstox import UpstoxTransformationAdapter
+from transformation.clients.adapters import UpstoxTransformationAdapter
 
 if __name__ == "__main__":
     transformeer = UpstoxTransformationAdapter()
