@@ -1,6 +1,6 @@
 import datetime
 from pathlib import WindowsPath
-from transformation.clients.adapters import UpstoxTransformationAdapter
+from transformation.clients.adapters.upstox import UpstoxTransformationAdapter
 
 if __name__ == "__main__":
     transformeer = UpstoxTransformationAdapter()
@@ -16,11 +16,13 @@ if __name__ == "__main__":
         for segment, filepath in filepaths.items():
             print(f"Segment: {segment}, Filepath: {filepath}")
 
-            normalized_df = transformeer.base_transformation(filepath=filepath)
+            normalized_df = transformeer.base_transformation(filepath=filepath, segment=segment)
 
-            if "mcx" in segment:
-                transformeer.mcx_transformation(normalized_df)
+            if "MCX" in segment:
+                df = transformeer.mcx_transformation(normalized_df)
             elif "INDEX" in segment:
-                transformeer.equity_transformation(normalized_df)
+                df = transformeer.equity_transformation(normalized_df)
             elif "FO" in segment:
-                transformeer.fno_transformation(normalized_df)
+                df = transformeer.fno_transformation(normalized_df)
+
+            print(df)

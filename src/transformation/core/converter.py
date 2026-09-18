@@ -84,3 +84,20 @@ class DefaultConverter:
         subset=["Ticker", "Timestamp"],
         keep="first",
         maintain_order=True)
+
+    def candle_value_handling(self, df: pl.DataFrame) -> pl.DataFrame:
+        """
+        Remove the negative valeus from the candles
+
+        Args:
+            df (pl.DataFrame): The input DataFrame.
+
+        Returns:
+            pl.DataFrame: The DataFrame with validated candle values.
+        """
+        return df.filter(
+            (pl.col("Open") > 0)
+            | (pl.col("High") > 0)
+            | (pl.col("Low") > 0)
+            | (pl.col("Close") > 0)
+        )

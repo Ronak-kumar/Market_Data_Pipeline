@@ -4,16 +4,32 @@ from typing import Dict
 import polars as pl
 from transformation.core import DefaultValidator, DefaultConverter
 from transformation.schemas import RAW_PARQUET_SCHEMA
+from abc import abstractmethod
+import re
 
 class DataTransformer:
 
-    def base_transformation(self, filepath: WindowsPath) -> DataFrame:
+    def base_transformation(self, filepath: WindowsPath, segment: str) -> DataFrame:
         validator = DefaultValidator()
         converter = DefaultConverter()
 
         df = pl.read_parquet(filepath)
 
         EXPECTED_SCHEMA = RAW_PARQUET_SCHEMA
+
+        if "Volume" not in df.columns:
+            df = df.with_columns([
+                pl.lit(0, pl.UInt32).alias("Volume")
+            ])
+
+        if "Open Interest" not in df.columns:
+            df = df.with_columns([
+                pl.lit(0, pl.UInt32).alias("Open Interest")
+            ])
+
+        df = df.with_columns(
+            pl.col(["Volume", "Open Interest"]).clip(lower_bound=0)
+        )
 
         ### Schema Validation and Conversion
         try:
@@ -67,20 +83,26 @@ class DataTransformer:
                 print(f"Duplicate value handling failed: {e}")
                 raise
 
+        df = df.rename({"Open Interest": "Open_Interest"})
+
+        if "Exchange" not in df.columns:
+            result = re.search(r"^([^_]+)", segment).group(1)
+
+            df = df.with_columns([
+                pl.lit(result).alias("Exchange")
+            ])
+
         return df
 
-    
+    @abstractmethod
     def fno_transformation(self, data: DataFrame) -> DataFrame:
-        # base clean
-        # data trsansformation
-        # data validation
-        # range filler 
         pass
-        
+
+    @abstractmethod
     def equity_transformation(self, data: DataFrame) -> DataFrame:
-        
         pass
-        
+
+    @abstractmethod
     def mcx_transformation(self, data: DataFrame) -> DataFrame:
         pass
 

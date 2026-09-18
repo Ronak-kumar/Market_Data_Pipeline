@@ -18,3 +18,32 @@ extractor_settings:
     - "MCX_FO"
   start_date: "2026-09-11"
   end_date: "2026-09-11"
+
+transformation_settings:
+  spot_name_mapping:
+    "NIFTY FIN SERVICE": "FINNIFTY"
+    "NIFTY 50": "NIFTY50"
+    "Nifty50": "NIFTY50"
+    "INDIA VIX": "VIX"
+    "IndiaVix": "VIX"
+    "NIFTY BANK": "BANKNIFTY"
+    "BankNifty": "BANKNIFTY"
+    "Banknifty": "BANKNIFTY"
+    "BSE BANKEX": "BANKEX"
+    "BSEBANKEX": "BANKEX"
+    "BSE SENSEX": "SENSEX"
+    "BSESENSEX": "SENSEX"
+
+  session_bounds:
+    indices:
+      start: "09:15"
+      end: "15:40"
+    fno:
+      start: "09:15"
+      end: "15:40"
+    equity:
+      start: "09:15"
+      end: "15:40"
+    mcx:
+      start: "09:15"
+      end: "23:30"

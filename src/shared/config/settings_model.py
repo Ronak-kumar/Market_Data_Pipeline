@@ -17,8 +17,13 @@ class ExtractorSettings(BaseModel):
     start_date: str = Field("Starting date for data extraction.")
     end_date: str = Field("End date for data extraction.")
 
+class TranformationSettings(BaseModel):
+    spot_name_mapping : dict = Field(..., description="Conatins the mapping for all the Instrument name to the user selected name")
+    session_bounds: dict = Field(..., description="Conatins the sesssion bounds of each segment")
+
 class AppSettings(BaseModel):
     application: Application
     extractor_settings: ExtractorSettings
+    transformation_settings: TranformationSettings
 
 
