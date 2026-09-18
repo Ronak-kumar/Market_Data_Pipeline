@@ -9,7 +9,7 @@ from polars import DataFrame
 class UpstoxTransformationAdapter(DataTransformer):
     def __init__(self):
         pass
-        
+
     def fno_transformation(self, df: DataFrame) -> DataFrame:
         ### Instrument type extraction 
 
@@ -67,6 +67,14 @@ class UpstoxTransformationAdapter(DataTransformer):
             .alias("Symbol")
         )
 
+        ### Asigning Fut strike to be 0 
+        df = df.with_columns(
+            pl.when(pl.col("Instrument_type") == "FUT")
+            .then(pl.lit(0))
+            .otherwise(pl.col("Strike"))
+            .alias("Strike")
+        )
+
         expected_columns = [
                     "Timestamp", "Ticker", "Open", "High", "Low", "Close",
                     "Instrument_type", "Expiry", "Strike", "Volume",
@@ -112,6 +120,7 @@ class UpstoxTransformationAdapter(DataTransformer):
             .alias("_ticker_without_type")
         )
 
+        ##############################################################
         ### Expiry extraction 
         expiry_pattern = r"(\d{1,2}[A-Z]{3}\d{2})"
         df = df.with_columns(
@@ -144,12 +153,21 @@ class UpstoxTransformationAdapter(DataTransformer):
             .str.replace(strike_pattern, "")
             .alias("Symbol")
         )
+        ####################################################################
+
+        ### Asigning Fut strike to be 0 
+        df = df.with_columns(
+            pl.when(pl.col("Instrument_type") == "FUT")
+            .then(pl.lit(0))
+            .otherwise(pl.col("Strike"))
+            .alias("Strike")
+        )
 
         expected_columns = [
-                    "Timestamp", "Ticker", "Open", "High", "Low", "Close",
-                    "Instrument_type", "Expiry", "Strike", "Volume",
-                    "Open_Interest", "Symbol", "Exchange"
-                ]
+            "Timestamp", "Ticker", "Open", "High", "Low", "Close",
+            "Instrument_type", "Expiry", "Strike", "Volume",
+            "Open_Interest", "Symbol", "Exchange"
+        ]
 
         return df.select(expected_columns)
 

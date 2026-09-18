@@ -105,7 +105,7 @@ class DailyDataExtractor:
 
             for date, filepath in processed_data.items():
                 try:
-                    self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                    self._s3_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
                     logger.info(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
                 except Exception as e:
                     logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")
@@ -125,7 +125,7 @@ class DailyDataExtractor:
 
                 for date, filepath in  processed_data.items():
                     try:
-                        # self._s3_obkect.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                        # self._s3_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
                         logger.info(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
                     except Exception as e:
                         logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")
