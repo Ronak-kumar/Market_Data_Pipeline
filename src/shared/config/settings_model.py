@@ -17,13 +17,18 @@ class ExtractorSettings(BaseModel):
     start_date: str = Field("Starting date for data extraction.")
     end_date: str = Field("End date for data extraction.")
 
-class TranformationSettings(BaseModel):
-    spot_name_mapping : dict = Field(..., description="Conatins the mapping for all the Instrument name to the user selected name")
-    session_bounds: dict = Field(..., description="Conatins the sesssion bounds of each segment")
+class DatalakeSettings(BaseModel):
+    client: str = Field(..., description="Cloud delta lake configuration")
+    push_to_cloud: bool = Field(..., description="Flag to be pushed to cloud or not")
+
+class TransformationSettings(BaseModel):
+    spot_name_mapping : dict = Field(..., description="Contains the mapping for all the Instrument name to the user selected name")
+    session_bounds: dict = Field(..., description="Contains the session bounds of each segment")
 
 class AppSettings(BaseModel):
     application: Application
     extractor_settings: ExtractorSettings
-    transformation_settings: TranformationSettings
+    transformation_settings: TransformationSettings
+    datalake_settings: DatalakeSettings
 
 
