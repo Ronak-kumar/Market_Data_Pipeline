@@ -97,7 +97,7 @@ class DefaultConverter:
         """
         return df.filter(
             (pl.col("Open") > 0)
-            | (pl.col("High") > 0)
-            | (pl.col("Low") > 0)
-            | (pl.col("Close") > 0)
+            & (pl.col("High") > 0)
+            & (pl.col("Low") > 0)
+            & (pl.col("Close") > 0)
         )

@@ -1,4 +1,4 @@
-from pathlib import WindowsPath
+from pathlib import Path
 from polars import DataFrame
 from typing import Dict
 import polars as pl
@@ -9,7 +9,7 @@ import re
 
 class DataTransformer:
 
-    def base_transformation(self, filepath: WindowsPath, segment: str) -> DataFrame:
+    def base_transformation(self, filepath: Path, segment: str) -> DataFrame:
         validator = DefaultValidator()
         converter = DefaultConverter()
 

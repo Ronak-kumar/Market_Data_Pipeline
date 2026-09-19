@@ -11,11 +11,9 @@ def transform_data(filemap: dict[str: Path]) -> None:
 
             normalized_df = transformeer.base_transformation(filepath=filepath, segment=segment)
 
-            if "MCX" in segment:
-                segment_frame = transformeer.mcx_transformation(normalized_df)
-            elif "INDEX" in segment:
+            if "INDEX" in segment:
                 segment_frame = transformeer.equity_transformation(normalized_df)
-            elif "FO" in segment:
+            elif "FO" in segment or "MCX" in segment:
                 segment_frame = transformeer.fno_transformation(normalized_df)
 
             parts = list(filepath.parts)
@@ -26,6 +24,7 @@ def transform_data(filemap: dict[str: Path]) -> None:
             segment_frame.write_parquet(saving_path / f"{segment}.parquet")
 
 
+### Debugging purpose only ####
 if __name__ == "__main__":
     transformeer = UpstoxTransformationAdapter()
     filemap = {datetime.date(2026, 9, 18): 
