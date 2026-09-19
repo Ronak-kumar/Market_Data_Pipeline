@@ -160,11 +160,11 @@ class UpstoxAdapter(MarketDataProvider):
             # User's original: a[0] + a[-3] + a[-2] + a[-1] + a[1] + a[2]
             symbol = context.get("asset_symbol", "")
             strike = int(context.get("strike_price", ""))
-            strike = str(strike)
+            strike = "" if strike == 0 else str(strike)
             instrument_type = context.get("instrument_type", "")
             expiry = context.get("expiry", "")
             expiry_date = datetime.fromtimestamp(expiry / 1000, tz=timezone.utc,).strftime("%d%b%y").upper()
-            name = symbol + expiry_date + strike + instrument_type
+            name = symbol + "_" + expiry_date + "_" + strike + "_" + instrument_type
             # name = parts[0] + parts[-3] + parts[-2] + parts[-1] + parts[1] + parts[2]
         else:
             name = context.get("name", "").upper()

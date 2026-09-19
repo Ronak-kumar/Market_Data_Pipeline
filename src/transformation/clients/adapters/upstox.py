@@ -12,61 +12,19 @@ class UpstoxTransformationAdapter(DataTransformer):
 
     def fno_transformation(self, df: DataFrame) -> DataFrame:
         ### Instrument type extraction 
-
-        instrument_types = ["CE", "PE", "FUT"]
-        instrument_pattern = "|".join(instrument_types)
-
         df = df.with_columns(
-            pl.col("Ticker")
-            .str.extract(
-                rf"({instrument_pattern})",
-                1,
-            )
-            .alias("Instrument_type")
+            pl.col("Ticker").str.split("_").list.get(0).alias("Symbol"),
+            pl.col("Ticker").str.split("_").list.get(1).alias("Expiry"),
+            pl.col("Ticker").str.split("_").list.get(2).alias("Strike"),
+            pl.col("Ticker").str.split("_").list.get(3).alias("Instrument_type"),
         )
 
+        
         df = df.with_columns(
-            pl.col("Ticker")
-            .str.replace(
-                rf"({instrument_pattern}).*$",
-                "",
-            )
-            .alias("_ticker_without_type")
+            [
+                pl.col("Ticker").str.replace_all("_", "")
+            ]
         )
-
-        ### Expiry extraction 
-        expiry_pattern = r"(\d{1,2}[A-Z]{3}\d{2})"
-        df = df.with_columns(
-            pl.col("_ticker_without_type")
-            .str.extract(expiry_pattern, 1)
-            .alias("Expiry")
-        )
-        df = df.with_columns(
-            pl.col("_ticker_without_type")
-            .str.replace(expiry_pattern, "")
-            .alias("_ticker_without_expiry")
-        )
-
-        ### Strike extraction
-        strike_pattern = r"(\d+(?:\.\d+)?)$"
-        df = df.with_columns(
-            pl.when(pl.col("Instrument_type").is_in(["CE", "PE"]))
-            .then(
-                pl.col("_ticker_without_expiry")
-                .str.extract(strike_pattern, 1)
-                .cast(pl.Float64)
-            )
-            .otherwise(None)
-            .alias("Strike")
-        )
-
-        ### Symbol extraction 
-        df = df.with_columns(
-            pl.col("_ticker_without_expiry")
-            .str.replace(strike_pattern, "")
-            .alias("Symbol")
-        )
-
         ### Asigning Fut strike to be 0 
         df = df.with_columns(
             pl.when(pl.col("Instrument_type") == "FUT")
@@ -98,60 +56,11 @@ class UpstoxTransformationAdapter(DataTransformer):
     def mcx_transformation(self, df: DataFrame) -> DataFrame:
 
         ### Instrument type extraction 
-
-        instrument_types = ["CE", "PE", "FUT"]
-        instrument_pattern = "|".join(instrument_types)
-
         df = df.with_columns(
-            pl.col("Ticker")
-            .str.extract(
-                rf"({instrument_pattern})",
-                1,
-            )
-            .alias("Instrument_type")
-        )
-
-        df = df.with_columns(
-            pl.col("Ticker")
-            .str.replace(
-                rf"({instrument_pattern}).*$",
-                "",
-            )
-            .alias("_ticker_without_type")
-        )
-
-        ##############################################################
-        ### Expiry extraction 
-        expiry_pattern = r"(\d{1,2}[A-Z]{3}\d{2})"
-        df = df.with_columns(
-            pl.col("_ticker_without_type")
-            .str.extract(expiry_pattern, 1)
-            .alias("Expiry")
-        )
-        df = df.with_columns(
-            pl.col("_ticker_without_type")
-            .str.replace(expiry_pattern, "")
-            .alias("_ticker_without_expiry")
-        )
-
-        ### Strike extraction
-        strike_pattern = r"(\d+(?:\.\d+)?)$"
-        df = df.with_columns(
-            pl.when(pl.col("Instrument_type").is_in(["CE", "PE"]))
-            .then(
-                pl.col("_ticker_without_expiry")
-                .str.extract(strike_pattern, 1)
-                .cast(pl.Float64)
-            )
-            .otherwise(None)
-            .alias("Strike")
-        )
-
-        ### Symbol extraction 
-        df = df.with_columns(
-            pl.col("_ticker_without_expiry")
-            .str.replace(strike_pattern, "")
-            .alias("Symbol")
+            pl.col("Ticker").str.split("_").list.get(0).alias("Symbol"),
+            pl.col("Ticker").str.split("_").list.get(1).alias("Expiry"),
+            pl.col("Ticker").str.split("_").list.get(2).alias("Strike"),
+            pl.col("Ticker").str.split("_").list.get(3).alias("Instrument_type"),
         )
         ####################################################################
 
@@ -161,6 +70,12 @@ class UpstoxTransformationAdapter(DataTransformer):
             .then(pl.lit(0))
             .otherwise(pl.col("Strike"))
             .alias("Strike")
+        )
+
+        df = df.with_columns(
+            [
+                pl.col("Ticker").str.replace_all("_", "")
+            ]
         )
 
         expected_columns = [

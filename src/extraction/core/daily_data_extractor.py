@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict
 from zoneinfo import ZoneInfo
 from shared.utils.aws_s3_manager import S3BucketManager
-
+from transformation.orchestrator import transform_data
 
 logger = get_logger(__file__)
 class DailyDataExtractor:
@@ -71,7 +71,7 @@ class DailyDataExtractor:
 
             segment_frame = pl.DataFrame(segment_rows, schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"])
             
-            saving_path = Path(__file__).parent.parent / "cache" / self._settings_config.extractor_settings.client.lower() / date 
+            saving_path = Path(__file__).parent.parent / "cache" / self._settings_config.extractor_settings.client.lower()/ "Bronze" / date 
             saving_path.mkdir(parents=True, exist_ok=True)
             segment_frame.write_parquet(saving_path / f"{segment}.parquet")
             segment_map[segment] = saving_path / f"{segment}.parquet"
@@ -105,7 +105,7 @@ class DailyDataExtractor:
 
             for date, filepath in processed_data.items():
                 try:
-                    self._s3_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                    # self._s3_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
                     logger.info(f"[S3 INFO] {filepath} | Succesfully exported file to s3 bucket")
                 except Exception as e:
                     logger.warning(f"[S3 Error] {filepath} | Unable exported file to s3 bucket | Exception : {e}")
@@ -134,4 +134,5 @@ class DailyDataExtractor:
 
 if __name__ == "__main__":
     main_runner = DailyDataExtractor(app_settings)
-    main_runner.process()
+    date_map = main_runner.process()
+    transform_data(date_map)

@@ -16,8 +16,8 @@ extractor_settings:
     - "BSE_INDEX"
     - "BSE_FO"
     - "MCX_FO"
-  start_date: ""
-  end_date: ""
+  start_date: "2026-09-18"
+  end_date: "2026-09-18"
 
 transformation_settings:
   spot_name_mapping:
