@@ -318,7 +318,3 @@ uv run ruff check src/
 4. Update README for new features
 
 ---
-
-## 📄 License
-
-Proprietary — Finesse Advisory Services internal use only.
