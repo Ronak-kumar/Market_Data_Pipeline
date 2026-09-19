@@ -3,6 +3,7 @@
 uv.lock
 TODO.md
 src/extraction/cache/*
+src/extraction/cache_old/*
 src/extraction/access_token/*
 /temp/*
 

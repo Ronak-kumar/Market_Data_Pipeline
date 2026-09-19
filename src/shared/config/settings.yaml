@@ -16,5 +16,38 @@ extractor_settings:
     - "BSE_INDEX"
     - "BSE_FO"
     - "MCX_FO"
-  start_date: "2026-09-11"
-  end_date: "2026-09-11"
+  start_date: "2026-09-01"
+  end_date: "2026-09-16"
+
+datalake_settings:
+  client: "AWS"
+  push_to_cloud: false
+
+transformation_settings:
+  spot_name_mapping:
+    "NIFTY FIN SERVICE": "FINNIFTY"
+    "NIFTY 50": "NIFTY50"
+    "Nifty50": "NIFTY50"
+    "INDIA VIX": "VIX"
+    "IndiaVix": "VIX"
+    "NIFTY BANK": "BANKNIFTY"
+    "BankNifty": "BANKNIFTY"
+    "Banknifty": "BANKNIFTY"
+    "BSE BANKEX": "BANKEX"
+    "BSEBANKEX": "BANKEX"
+    "BSE SENSEX": "SENSEX"
+    "BSESENSEX": "SENSEX"
+
+  session_bounds:
+    indices:
+      start: "09:15"
+      end: "15:40"
+    fno:
+      start: "09:15"
+      end: "15:40"
+    equity:
+      start: "09:15"
+      end: "15:40"
+    mcx:
+      start: "09:15"
+      end: "23:30"

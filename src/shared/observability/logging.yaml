@@ -1,53 +1,42 @@
-level: INFO
-
+level: "INFO"
 logger:
-  name: architecture-build
-  propagate: true
-
+  name: "market_data_pipeline"
+  propagate: false
 console:
-  enabled: true
-  level: INFO
-
+  enabled: false
+  level: "INFO"
 file:
   enabled: true
-  level: INFO
-  directory: logs
-  filename: application.log
-
+  level: "DEBUG"
+  directory: "logs"
+  filename: "pipeline.log"
   rotation:
     enabled: true
-    when: midnight
+    when: "midnight"
     interval: 1
     backup_count: 30
-
 format:
-  type: json          # json | text
-
-  text: "%(asctime)s | %(levelname)s | %(name)s | %(filename)s:%(lineno)d | %(message)s"
-
+  type: "json"
+  text: "%(asctime)s | %(levelname)-8s | %(name)s | %(filename)s:%(lineno)d | %(message)s"
   json:
-    timestamp: "%(asctime)s"
-    level: "%(levelname)s"
-    logger: "%(name)s"
-    module: "%(module)s"
-    function: "%(funcName)s"
-    line: "%(lineno)d"
-    process: "%(process)d"
-    thread: "%(threadName)s"
-    message: "%(message)s"
-
+    timestamp: "timestamp"
+    level: "level"
+    logger: "logger"
+    module: "module"
+    function: "function"
+    line: "line"
+    process: "process_id"
+    thread: "thread_name"
+    message: "message"
 request_logging:
   enabled: true
   log_request_body: false
   log_response_body: false
   log_headers: false
-
 performance:
   enabled: true
   slow_request_threshold_ms: 1000
-
 exception_logging:
   include_traceback: true
-
 access_log:
-  enabled: true
+  enabled: false
