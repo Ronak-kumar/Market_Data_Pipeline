@@ -1,8 +1,8 @@
 from shared.config import app_settings
 import polars as pl
-from extraction.clients.discovery import client_discovery
-from extraction.clients.registry import client_registry
-from extraction.parser.base_parser import UpstoxInstrumentParser
+from extraction.clients import client_discovery
+from extraction.clients import client_registry
+from extraction.parser import parser_registry, parser_discovery
 from shared.observability import get_logger
 from tqdm import tqdm
 from datetime import datetime, timedelta
@@ -18,6 +18,7 @@ class DailyDataExtractor:
     def __init__(self, app_settings):
         self._settings_config = app_settings
         client_discovery()
+        parser_discovery()
         self._s3_object = S3BucketManager()
         logger.info("DailyDataExtractor initialized", extra={"client": app_settings.extractor_settings.client})
 
@@ -128,7 +129,14 @@ class DailyDataExtractor:
             logger.error("Failed to instantiate provider", extra={"client": client, "error": str(e)}, exc_info=True)
             return {}
 
-        parser = UpstoxInstrumentParser()
+        try:
+            parser = parser_registry.get(client)()
+            logger.info("Parser instantiated", extra={"client": client})
+        except Exception as e:
+            logger.error("Failed to instantiate Parser", extra={"client": client, "error": str(e)}, exc_info=True)
+            return {}
+
+        
         try:
             master_instrument = parser.parse(provider.master_instrument_data)
             logger.info("Master instrument parsed", extra={"rows": master_instrument.height})
@@ -155,6 +163,9 @@ class DailyDataExtractor:
                     except Exception as e:
                         logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
 
+            transform_data({date: processed_data})
+
+
         else:
             start_date = self._settings_config.extractor_settings.start_date
             end_date = self._settings_config.extractor_settings.end_date
@@ -178,7 +189,7 @@ class DailyDataExtractor:
                         except Exception as e:
                             logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
 
-        transform_data({date: processed_data})
+                transform_data({date: processed_data})
 
         logger.info("Extraction process completed", extra={"dates_processed": len(date_map)})
         return date_map

@@ -1,4 +1,4 @@
-from transformation.clients import client_registry
+from transformation.clients import transformer_registry
 from transformation.clients import DataTransformer
 from shared.config import app_settings
 import polars as pl
@@ -7,7 +7,7 @@ from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
-@client_registry.register('upstox')
+@transformer_registry.register('upstox')
 class UpstoxTransformationAdapter(DataTransformer):
     def __init__(self):
         logger.debug("UpstoxTransformationAdapter initialized")
