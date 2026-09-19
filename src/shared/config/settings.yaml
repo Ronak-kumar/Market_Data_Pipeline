@@ -12,11 +12,11 @@ extractor_settings:
   expiry_duration: 3
   processable_segments:
     - "NSE_INDEX"
-    - "NSE_FO"
-    - "BSE_INDEX"
-    - "BSE_FO"
-    - "MCX_FO"
-  start_date: "2026-09-01"
+    # - "NSE_FO"
+    # - "BSE_INDEX"
+    # - "BSE_FO"
+    # - "MCX_FO"
+  start_date: "2026-09-16"
   end_date: "2026-09-16"
 
 datalake_settings:

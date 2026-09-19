@@ -11,7 +11,7 @@ from typing import Dict
 from zoneinfo import ZoneInfo
 from shared.utils.aws_s3_manager import S3BucketManager
 from transformation.orchestrator import transform_data
-
+from transformation.clients import transformer_discovery, transformer_registry
 logger = get_logger(__name__)
 
 class DailyDataExtractor:
@@ -19,6 +19,7 @@ class DailyDataExtractor:
         self._settings_config = app_settings
         client_discovery()
         parser_discovery()
+        transformer_discovery()
         self._s3_object = S3BucketManager()
         logger.info("DailyDataExtractor initialized", extra={"client": app_settings.extractor_settings.client})
 
@@ -163,7 +164,8 @@ class DailyDataExtractor:
                     except Exception as e:
                         logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
 
-            transform_data({date: processed_data})
+            transformer = transformer_registry.get(client)()
+            transform_data({date: processed_data}, transformer)
 
 
         else:
@@ -189,8 +191,9 @@ class DailyDataExtractor:
                         except Exception as e:
                             logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
 
-                transform_data({date: processed_data})
-
+                transformer = transformer_registry.get(client)()
+                transform_data({date: processed_data}, transformer)
+                
         logger.info("Extraction process completed", extra={"dates_processed": len(date_map)})
         return date_map
 

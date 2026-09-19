@@ -1,13 +1,13 @@
 import datetime
 from pathlib import Path
-from transformation.clients.adapters.upstox import UpstoxTransformationAdapter
+from transformation.clients import DataTransformer
+# from transformation.clients.adapters.upstox import UpstoxTransformationAdapter
 from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
-def transform_data(filemap: dict[str, Path]) -> None:
+def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> None:
     logger.info("Starting transformation pipeline", extra={"dates_count": len(filemap)})
-    transformer = UpstoxTransformationAdapter()
     for date, filepaths in filemap.items():
         logger.info("Processing date", extra={"date": str(date), "segments_count": len(filepaths)})
         for segment, filepath in filepaths.items():
