@@ -1,6 +1,6 @@
-from transformation.clients import adapters
+from extraction.parser import adapters
 from shared.utils import discover_modules
 
 
-def transformer_discovery():
+def parser_discovery():
     discover_modules(adapters)

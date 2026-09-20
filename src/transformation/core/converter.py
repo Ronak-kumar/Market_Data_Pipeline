@@ -37,12 +37,27 @@ class DefaultConverter:
             pl.DataFrame: The DataFrame with the Timestamp column.
         """
         logger.debug("Creating timestamp column", extra={"date_col": date_col, "time_col": time_col, "input_rows": df.height})
-        df = df.with_columns([(pl.col(date_col) + " " + pl.col(time_col)).alias("Timestamp")])
-        df = df.with_columns([
-            pl.col(date_col).str.strptime(pl.Date, format="%d-%m-%Y"),
-            pl.col(time_col).str.strptime(pl.Time, format="%H:%M:%S"),
-            pl.col("Timestamp").str.strptime(pl.Datetime, format="%d-%m-%Y %H:%M:%S")
-        ])
+
+        df = df.with_columns(
+            pl.concat_str(
+                [
+                    pl.col(date_col),
+                    pl.col(time_col),
+                ],
+                separator=" ",
+            )
+            .str.strptime(
+                pl.Datetime,
+                format="%d-%m-%Y %H:%M:%S",
+            )
+            .alias("Timestamp")
+        )
+        # df = df.with_columns([(pl.col(date_col) + " " + pl.col(time_col)).alias("Timestamp")])
+        # df = df.with_columns([
+        #     pl.col(date_col).str.strptime(pl.Date, format="%d-%m-%Y"),
+        #     pl.col(time_col).str.strptime(pl.Time, format="%H:%M:%S"),
+        #     pl.col("Timestamp").str.strptime(pl.Datetime, format="%d-%m-%Y %H:%M:%S")
+        # ])
         logger.debug("Timestamp creation completed", extra={"output_rows": df.height})
         return df
 

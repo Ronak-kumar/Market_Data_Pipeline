@@ -20,6 +20,8 @@ class ExtractorSettings(BaseModel):
 class DatalakeSettings(BaseModel):
     client: str = Field(..., description="Cloud delta lake configuration")
     push_to_cloud: bool = Field(..., description="Flag to be pushed to cloud or not")
+    storage_name: str = Field(..., description="Storage object where the data will be stored")
+    destination_folder: str = Field(..., description="Location where the data will be stored")
 
 class TransformationSettings(BaseModel):
     spot_name_mapping : dict = Field(..., description="Contains the mapping for all the Instrument name to the user selected name")
@@ -29,6 +31,6 @@ class AppSettings(BaseModel):
     application: Application
     extractor_settings: ExtractorSettings
     transformation_settings: TransformationSettings
-    datalake_settings: DatalakeSettings
+    cloud_settings: DatalakeSettings
 
 

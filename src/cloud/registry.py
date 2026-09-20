@@ -1,3 +1,3 @@
 from shared.utils import Registry
 
-transformer_registry = Registry()
+cloud_registry = Registry()

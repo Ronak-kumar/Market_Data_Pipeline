@@ -12,16 +12,18 @@ extractor_settings:
   expiry_duration: 3
   processable_segments:
     - "NSE_INDEX"
-    - "NSE_FO"
-    - "BSE_INDEX"
-    - "BSE_FO"
-    - "MCX_FO"
-  start_date: "2026-09-01"
-  end_date: "2026-09-16"
+    # - "NSE_FO"
+    # - "BSE_INDEX"
+    # - "BSE_FO"
+    # - "MCX_FO"
+  start_date: "2026-09-15"
+  end_date: "2026-09-15"
 
-datalake_settings:
-  client: "AWS"
-  push_to_cloud: false
+cloud_settings:
+  client: "aws"
+  push_to_cloud: true
+  storage_name: "marketdata-pipeline"
+  destination_folder: "market_data_storage"
 
 transformation_settings:
   spot_name_mapping:
