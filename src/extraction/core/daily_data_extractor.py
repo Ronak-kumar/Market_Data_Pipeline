@@ -12,21 +12,118 @@ from zoneinfo import ZoneInfo
 from cloud import cloud_discovery, cloud_registry
 from transformation.orchestrator import transform_data
 from transformation.clients import transformer_discovery, transformer_registry
+
 logger = get_logger(__name__)
 
 class DailyDataExtractor:
-    def __init__(self, app_settings):
+    def __init__(self):
+        self._initialize_adapters()
+
+    def _initialize_adapters(self):
         self._settings_config = app_settings
         client_discovery()
         parser_discovery()
         transformer_discovery()
         cloud_discovery()
 
-        cloud_client = app_settings.datalake_settings.client
-        self._cloud_push_flag = app_settings.datalake_settings.push_to_cloud
-        self._cloud_object = cloud_registry.get(cloud_client)()
-        logger.info("DailyDataExtractor initialized", extra={"client": app_settings.extractor_settings.client})
+        client = self._settings_config.extractor_settings.client.lower()
+        cloud_client = self._settings_config.cloud_settings.client.lower()
+        self._cloud_push_flag = self._settings_config.cloud_settings.push_to_cloud
 
+        try:
+            self._provider = client_registry.get(client)()
+            logger.info("Provider instantiated", extra={"client": client})
+        except Exception as e:
+            logger.error("Failed to instantiate provider", extra={"client": client, "error": str(e)}, exc_info=True)
+            raise
+
+        try:
+            self._parser = parser_registry.get(client)()
+            logger.info("Parser instantiated", extra={"client": client})
+        except Exception as e:
+            logger.error("Failed to instantiate Parser", extra={"client": client, "error": str(e)}, exc_info=True)
+            raise
+
+        try:
+            self._transformer = transformer_registry.get(client)()
+            logger.info("Transformer Object instantiated", extra={"client": client})
+        except Exception as e:
+            logger.error("Failed to instantiate Transformer", extra={"client": client, "error": str(e)}, exc_info=True)
+            raise
+
+        try:
+            self._cloud_object = cloud_registry.get(cloud_client)()
+            logger.info("Cloud Object instantiated", extra={"client": cloud_client})
+        except Exception as e:
+            logger.error("Failed to instantiate Cloud", extra={"client": cloud_client, "error": str(e)}, exc_info=True)
+            raise
+
+        logger.info("DailyDataExtractor initialized", extra={"client": client})
+
+    def _push_to_cloud(self, processed_data: dict) -> None:
+        if not self._cloud_push_flag:
+            return
+        
+        for _, filepath in processed_data.items():
+            try:
+                storage_object = self._settings_config.cloud_settings.storage_name
+                destination_folder = self._settings_config.cloud_settings.destination_folder
+                self._cloud_object.upload_files(filepath=filepath, bucket_name=storage_object, destination_prefix=destination_folder)
+                logger.info("Cloud upload success", extra={"filepath": str(filepath)})
+            except Exception as e:
+                logger.warning("Cloud upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
+
+
+    def process(self) -> Dict:
+        logger.info("Starting extraction process")
+        client = self._settings_config.extractor_settings.client.lower()
+
+        try:
+            master_instrument = self._parser.parse(self._provider.master_instrument_data)
+            logger.info("Master instrument parsed", extra={"rows": master_instrument.height})
+        except Exception as e:
+            logger.error("Failed to parse master instrument", extra={"client": client, "error": str(e)}, exc_info=True)
+            return {}
+
+        date_map = {}
+
+        if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
+            logger.info("No date range specified, processing current day (intraday)")
+            process_able_date = datetime.now()
+            processed_data = self._day_process(date=process_able_date, master_instrument=master_instrument, client=client, variation="intraday")
+            date_map[process_able_date] = processed_data
+
+        else:
+            start_date = self._settings_config.extractor_settings.start_date
+            end_date = self._settings_config.extractor_settings.end_date
+            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+            dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+            logger.info("Historical date range", extra={"start_date": start_date, "end_date": end_date, "days": len(dates)})
+
+            for date in dates:
+                processed_data = self._day_process(date=date, master_instrument=master_instrument, client=client, variation="historical")
+                date_map[date] = processed_data
+                
+        logger.info("Extraction process completed", extra={"dates_processed": len(date_map)})
+        return date_map
+    
+    def _day_process(self, date, master_instrument, client, variation) -> dict:
+        date_str = datetime.strftime(date, "%Y-%m-%d")
+        self._provider._expiry_suffixes = self._provider.get_expiry_suffixes(process_able_date=date, months_ahead=self._settings_config.extractor_settings.expiry_duration)
+        logger.debug("Expiry suffixes loaded", extra={"date": date_str, "suffixes": self._provider._expiry_suffixes})
+
+
+        # Process day data
+        logger.info("Processing date...", extra={"date": date_str, "variation": variation})
+        processed_data = self._processing_day(master_instrument, provider=self._provider, date=date_str, variation=variation)
+        # Push processed data to datalake
+        self._push_to_cloud(processed_data)
+        # Create silver data
+        transform_data({date: processed_data}, self._transformer)
+
+        return processed_data
+    
     def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
         logger.info("Starting daily processing", extra={"date": date, "variation": variation})
         segment_map = {segment: pl.DataFrame() for segment in self._settings_config.extractor_settings.processable_segments}
@@ -124,83 +221,7 @@ class DailyDataExtractor:
 
         return segment_map
 
-    def process(self) -> Dict:
-        logger.info("Starting extraction process")
-        client = self._settings_config.extractor_settings.client.lower()
-        try:
-            provider = client_registry.get(client)()
-            logger.info("Provider instantiated", extra={"client": client})
-        except Exception as e:
-            logger.error("Failed to instantiate provider", extra={"client": client, "error": str(e)}, exc_info=True)
-            return {}
-
-        try:
-            parser = parser_registry.get(client)()
-            logger.info("Parser instantiated", extra={"client": client})
-        except Exception as e:
-            logger.error("Failed to instantiate Parser", extra={"client": client, "error": str(e)}, exc_info=True)
-            return {}
-
-        
-        try:
-            master_instrument = parser.parse(provider.master_instrument_data)
-            logger.info("Master instrument parsed", extra={"rows": master_instrument.height})
-        except Exception as e:
-            logger.error("Failed to parse master instrument", extra={"client": client, "error": str(e)}, exc_info=True)
-            return {}
-
-        date_map = {}
-
-        if self._settings_config.extractor_settings.start_date == "" or self._settings_config.extractor_settings.end_date == "":
-            logger.info("No date range specified, processing current day (intraday)")
-            process_able_date = datetime.now()
-            date_str = process_able_date.strftime("%Y-%m-%d")
-            provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=process_able_date.date(), months_ahead=self._settings_config.extractor_settings.expiry_duration)
-            logger.debug("Expiry suffixes loaded", extra={"suffixes": provider._expiry_suffixes})
-            processed_data = self._processing_day(master_instrument, provider=provider, date=date_str, variation="intraday")
-            date_map[process_able_date] = processed_data
-
-            if self._cloud_push_flag:
-                for date, filepath in processed_data.items():
-                    try:
-                        self._cloud_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
-                        logger.info("S3 upload success", extra={"filepath": str(filepath)})
-                    except Exception as e:
-                        logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
-
-            transformer = transformer_registry.get(client)()
-            transform_data({date: processed_data}, transformer)
-
-
-        else:
-            start_date = self._settings_config.extractor_settings.start_date
-            end_date = self._settings_config.extractor_settings.end_date
-            start = datetime.strptime(start_date, "%Y-%m-%d").date()
-            end = datetime.strptime(end_date, "%Y-%m-%d").date()
-            dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-            logger.info("Historical date range", extra={"start_date": start_date, "end_date": end_date, "days": len(dates)})
-
-            for date in dates:
-                date_str = datetime.strftime(date, "%Y-%m-%d")
-                provider._expiry_suffixes = provider.get_expiry_suffixes(process_able_date=date, months_ahead=self._settings_config.extractor_settings.expiry_duration)
-                logger.debug("Expiry suffixes loaded", extra={"date": date_str, "suffixes": provider._expiry_suffixes})
-                processed_data = self._processing_day(master_instrument, provider=provider, date=str(date_str), variation="historical")
-                date_map[date] = processed_data
-
-                if self._cloud_push_flag:
-                    for date_key, filepath in processed_data.items():
-                        try:
-                            self._cloud_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
-                            logger.info("S3 upload success", extra={"filepath": str(filepath)})
-                        except Exception as e:
-                            logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
-
-                transformer = transformer_registry.get(client)()
-                transform_data({date: processed_data}, transformer)
-                
-        logger.info("Extraction process completed", extra={"dates_processed": len(date_map)})
-        return date_map
 
 if __name__ == "__main__":
-    main_runner = DailyDataExtractor(app_settings)
+    main_runner = DailyDataExtractor()
     date_map = main_runner.process()

@@ -22,7 +22,7 @@ class S3BucketManager(DefaultCloud):
 
     def upload_files(self, filepath: Path, bucket_name: str, destination_prefix: str) -> None:
         logger.info("Uploading file to S3", extra={"filepath": str(filepath), "bucket": bucket_name, "prefix": destination_prefix})
-        destination_postfix = "/".join(filepath.parts[-2:])
+        destination_postfix = "/".join(filepath.parts[-4:])
         try:
             self.s3_client.upload_file(
                 str(filepath),
