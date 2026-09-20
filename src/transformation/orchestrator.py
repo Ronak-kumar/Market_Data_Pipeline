@@ -2,6 +2,8 @@ import datetime
 from pathlib import Path
 from transformation.clients import DataTransformer
 from shared.observability import get_logger
+from transformation.core import IntradayRangeFiller
+from shared.config import app_settings
 
 logger = get_logger(__name__)
 
@@ -15,11 +17,17 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> No
             normalized_df = transformer.base_transformation(filepath=filepath, segment=segment)
             logger.debug("Base transformation completed", extra={"segment": segment, "rows": normalized_df.height})
 
+            result = segment.rsplit("_", 1)[-1].lower()
+            range = app_settings.transformation_settings.session_bounds[result.lower()]
+            range_filled_segment_frame = IntradayRangeFiller.range_filler(normalized_df, date=date, start_time=range["start"], end_time=range["end"],
+                                                                            interval=app_settings.extractor_settings.interval)
+            logger.debug("Range Filling Completed", extra={"segment": segment, "rows": range_filled_segment_frame.height})
+
             if "INDEX" in segment:
-                segment_frame = transformer.equity_transformation(normalized_df)
+                segment_frame = transformer.equity_transformation(range_filled_segment_frame)
                 logger.debug("Equity transformation completed", extra={"segment": segment, "rows": segment_frame.height})
             elif "FO" in segment or "MCX" in segment:
-                segment_frame = transformer.fno_transformation(normalized_df)
+                segment_frame = transformer.fno_transformation(range_filled_segment_frame)
                 logger.debug("FNO transformation completed", extra={"segment": segment, "rows": segment_frame.height})
             else:
                 logger.warning("Unknown segment type, skipping", extra={"segment": segment})
@@ -27,7 +35,6 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> No
 
             parts = list(filepath.parts)
             parts[parts.index("Bronze")] = "Silver"
-
             saving_path = Path(*parts[:-1])
             saving_path.mkdir(parents=True, exist_ok=True)
             output_path = saving_path / f"{segment}.parquet"

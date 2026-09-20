@@ -12,10 +12,10 @@ extractor_settings:
   expiry_duration: 3
   processable_segments:
     - "NSE_INDEX"
-    # - "NSE_FO"
-    # - "BSE_INDEX"
-    # - "BSE_FO"
-    # - "MCX_FO"
+    - "NSE_FO"
+    - "BSE_INDEX"
+    - "BSE_FO"
+    - "MCX_FO"
   start_date: "2026-09-15"
   end_date: "2026-09-15"
 
@@ -41,10 +41,10 @@ transformation_settings:
     "BSESENSEX": "SENSEX"
 
   session_bounds:
-    indices:
+    index:
       start: "09:15"
       end: "15:40"
-    fno:
+    fo:
       start: "09:15"
       end: "15:40"
     equity:
