@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict
 from zoneinfo import ZoneInfo
-from shared.utils.aws_s3_manager import S3BucketManager
+from cloud import cloud_discovery, cloud_registry
 from transformation.orchestrator import transform_data
 from transformation.clients import transformer_discovery, transformer_registry
 logger = get_logger(__name__)
@@ -20,7 +20,11 @@ class DailyDataExtractor:
         client_discovery()
         parser_discovery()
         transformer_discovery()
-        self._s3_object = S3BucketManager()
+        cloud_discovery()
+
+        cloud_client = app_settings.datalake_settings.client
+        self._cloud_push_flag = app_settings.datalake_settings.push_to_cloud
+        self._cloud_object = cloud_registry.get(cloud_client)()
         logger.info("DailyDataExtractor initialized", extra={"client": app_settings.extractor_settings.client})
 
     def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
@@ -156,10 +160,10 @@ class DailyDataExtractor:
             processed_data = self._processing_day(master_instrument, provider=provider, date=date_str, variation="intraday")
             date_map[process_able_date] = processed_data
 
-            if app_settings.datalake_settings.push_to_cloud:
+            if self._cloud_push_flag:
                 for date, filepath in processed_data.items():
                     try:
-                        self._s3_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                        self._cloud_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
                         logger.info("S3 upload success", extra={"filepath": str(filepath)})
                     except Exception as e:
                         logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
@@ -183,10 +187,10 @@ class DailyDataExtractor:
                 processed_data = self._processing_day(master_instrument, provider=provider, date=str(date_str), variation="historical")
                 date_map[date] = processed_data
 
-                if app_settings.datalake_settings.push_to_cloud:
+                if self._cloud_push_flag:
                     for date_key, filepath in processed_data.items():
                         try:
-                            self._s3_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
+                            self._cloud_object.upload_files(filepath=filepath, bucket_name="marketdata-pipeline", destination_prefix=f"bronze_cache_storage_market_data/{client}/")
                             logger.info("S3 upload success", extra={"filepath": str(filepath)})
                         except Exception as e:
                             logger.warning("S3 upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)

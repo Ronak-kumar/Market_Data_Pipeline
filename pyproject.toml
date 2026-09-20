@@ -25,4 +25,5 @@ packages = [
     "src/extraction",
     "src/transformation",
     "src/shared",
+    "src/cloud",
 ]

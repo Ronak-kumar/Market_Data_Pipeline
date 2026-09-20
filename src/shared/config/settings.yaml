@@ -20,7 +20,7 @@ extractor_settings:
   end_date: "2026-09-16"
 
 datalake_settings:
-  client: "AWS"
+  client: "aws"
   push_to_cloud: false
 
 transformation_settings:
