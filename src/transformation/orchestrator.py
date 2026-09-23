@@ -7,7 +7,7 @@ from shared.config import app_settings
 
 logger = get_logger(__name__)
 
-def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> None:
+def transform_data(filemap: dict[str, Path], transformer: DataTransformer, segment_type_map: dict) -> None:
     logger.info("Starting transformation pipeline", extra={"dates_count": len(filemap)})
     for date, filepaths in filemap.items():
         logger.info("Processing date", extra={"date": str(date), "segments_count": len(filepaths)})
@@ -17,16 +17,17 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> No
             normalized_df = transformer.base_transformation(filepath=filepath, segment=segment)
             logger.debug("Base transformation completed", extra={"segment": segment, "rows": normalized_df.height})
 
-            result = segment.rsplit("_", 1)[-1].lower()
-            range = app_settings.transformation_settings.session_bounds[result.lower()]
+            range = app_settings.broker_configuration.session_bounds[segment]
             range_filled_segment_frame = IntradayRangeFiller.range_filler(normalized_df, date=date, start_time=range["start"], end_time=range["end"],
                                                                             interval=app_settings.extractor_settings.interval)
             logger.debug("Range Filling Completed", extra={"segment": segment, "rows": range_filled_segment_frame.height})
 
-            if "INDEX" in segment:
+            segment_type = (segment_type_map[segment]).lower()
+
+            if "cash" in segment_type:
                 segment_frame = transformer.equity_transformation(range_filled_segment_frame)
                 logger.debug("Equity transformation completed", extra={"segment": segment, "rows": segment_frame.height})
-            elif "FO" in segment or "MCX" in segment:
+            elif "fo" in segment_type:
                 segment_frame = transformer.fno_transformation(range_filled_segment_frame)
                 logger.debug("FNO transformation completed", extra={"segment": segment, "rows": segment_frame.height})
             else:
@@ -40,3 +41,5 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> No
             output_path = saving_path / f"{segment}.parquet"
             segment_frame.write_parquet(output_path)
             logger.info("Segment written to Silver layer", extra={"segment": segment, "output_path": str(output_path), "rows": segment_frame.height})
+
+

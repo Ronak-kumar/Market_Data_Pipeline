@@ -49,8 +49,8 @@ class UpstoxAdapter(MarketDataProvider):
     def _fetch_master_instrument(self):
         """Normalize master instrument for all the adapters"""
         logger.info("Fetching master instrument list")
+        self._load_token()
         try:
-            self._load_token()
             logger.debug("Making request to master URL", extra={"url": self.MASTER_URL})
             response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
             response.raise_for_status()
@@ -171,7 +171,7 @@ class UpstoxAdapter(MarketDataProvider):
 
         if not candles:
             logger.debug("No candles returned", extra={"instrument_key": instrument_key})
-            return None, None
+            return None
 
         # 5. Validate each candle structure - Upstox format: [timestamp, open, high, low, close, volume, oi]
         validated_candles = []
@@ -205,7 +205,11 @@ class UpstoxAdapter(MarketDataProvider):
             strike = "" if strike == 0 else str(strike)
             instrument_type = context.get("instrument_type", "")
             expiry = context.get("expiry", "")
-            expiry_date = datetime.fromtimestamp(expiry / 1000, tz=timezone.utc).strftime("%d%b%y").upper()
+            if expiry == None:
+                expiry_date = "".join(parts[-3:])
+            else:
+                expiry_date = datetime.fromtimestamp(expiry / 1000, tz=timezone.utc).strftime("%d%b%y").upper()
+                
             name = symbol + "_" + expiry_date + "_" + strike + "_" + instrument_type
         else:
             name = context.get("name", "").upper()

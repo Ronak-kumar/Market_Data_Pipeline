@@ -21,12 +21,13 @@ class DailyDataExtractor:
         self._initialize_client()
         self._initialize_cloud_clients()
         self._config()
+        self.segment_type_map = {segment: segment_type for segment_type, segments in self._settings_config.broker_configuration.processable_segments.items() for segment in segments}
 
     def _config(self):
         expiry_suffix_duration = self._settings_config.extractor_settings.expiry_duration
         end_date = self._settings_config.extractor_settings.end_date
         start_date = self._settings_config.extractor_settings.start_date
-        processable_segments = self._settings_config.extractor_settings.processable_segments
+        processable_segments = self._settings_config.broker_configuration.processable_segments
         extraction_interval = self._settings_config.extractor_settings.interval
         extraction_variation = "intraday" if end_date == "" and start_date == "" else "historical" 
 
@@ -87,7 +88,7 @@ class DailyDataExtractor:
 
 
     def _push_to_cloud(self, processed_data: dict) -> None:
-        if not self._cloud_push_flag:
+        if not self.cloud_object.push_to_cloud_flag:
             return
         
         for _, filepath in processed_data.items():
@@ -141,20 +142,20 @@ class DailyDataExtractor:
         self.client_object.provider._expiry_suffixes = self.client_object.provider.get_expiry_suffixes(process_able_date=date, months_ahead=self.extraction_config.expiry_suffix_duration)
         logger.debug("Expiry suffixes loaded", extra={"date": date_str, "suffixes": self.extraction_config.expiry_suffix_duration})
 
-
         # Process day data
         logger.info("Processing date...", extra={"date": date_str, "variation": variation})
         processed_data = self._processing_day(master_instrument, provider=self.client_object.provider, date=date_str, variation=variation)
         # Push processed data to datalake
         self._push_to_cloud(processed_data)
         # Create silver data
-        transform_data({date: processed_data}, self._transformer)
+        transform_data({date: processed_data}, self.client_object.transformer, self.segment_type_map)
 
         return processed_data
 
     def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
         logger.info("Starting daily processing", extra={"date": date, "variation": variation})
-        segment_map = {segment: pl.DataFrame() for segment in self.extraction_config.processable_segments}
+
+        segment_map = {segment: pl.DataFrame() for segment in self.segment_type_map.keys()}
         if len(segment_map) == 0:
             logger.warning("No segment selected for processing", extra={"processable_segments": self.extraction_config.processable_segments})
             return segment_map
@@ -227,7 +228,7 @@ class DailyDataExtractor:
 
             if not candles:
                 skipped_count += 1
-                logger.warning("No candles returned", extra={"instrument_key": row["instrument_key"], "Trading_Symbol": trading_symbol})
+                logger.info(f'No candles returned {trading_symbol}')
                 continue
 
             rows.extend(candles)
@@ -237,7 +238,8 @@ class DailyDataExtractor:
 
     def _should_skip_instrument(self, row: dict, segment: str, provider: Any) -> bool:
         # F&O filtering
-        if "fo" in segment.lower():
+        segment_type = self.segment_type_map[segment]
+        if "fo" in segment_type.lower():
             trading_symbol = row.get("trading_symbol", "")
 
             if not any(
