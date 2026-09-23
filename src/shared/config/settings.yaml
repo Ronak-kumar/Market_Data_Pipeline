@@ -16,8 +16,8 @@ extractor_settings:
     - "BSE_INDEX"
     - "BSE_FO"
     - "MCX_FO"
-  start_date: "2026-09-15"
-  end_date: "2026-09-15"
+  start_date: ""
+  end_date: ""
 
 cloud_settings:
   client: "aws"

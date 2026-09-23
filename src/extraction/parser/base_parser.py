@@ -24,6 +24,15 @@ class InstrumentParser(ABC):
         if missing_columns:
             logger.debug("Added missing columns", extra={"missing_columns": missing_columns})
 
+        # Cast existing columns to their target types
+        cast_exprs = []
+        for column, dtype in MASTER_INSTRUMENT_SCHEMA.items():
+            if column in df.columns:
+                cast_exprs.append(pl.col(column).cast(dtype, strict=False).alias(column))
+
+        if cast_exprs:
+            df = df.with_columns(cast_exprs)
+
         # Select canonical columns
         result = df.select(list(MASTER_INSTRUMENT_SCHEMA.keys()))
         logger.debug("Schema normalization complete", extra={"output_columns": result.columns, "output_rows": result.height})
