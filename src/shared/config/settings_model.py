@@ -23,7 +23,7 @@ class DatalakeSettings(BaseModel):
     destination_folder: str = Field(..., description="Location where the data will be stored")
 
 class BrokerConfiguration(BaseModel):
-    processable_segments: dict[str, list[str]] = Field(..., description="List of segments that can needs to be processed.")
+    processable_segments: list = Field(..., description="List of segments that can needs to be processed.")
     session_bounds: dict = Field(..., description="Contains the session bounds of each segment")
     symbol_name_mapping : dict = Field(..., description="Contains the mapping for all the Instrument name to the user selected name")
 

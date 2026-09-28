@@ -19,14 +19,6 @@ class MarketDataProvider(ABC):
         self._reset_client_session()
         self._initialize()
 
-    def get_expiry_suffixes(self, process_able_date: datetime, months_ahead: int = 3) -> List[str]:
-        suffixes = [
-            (process_able_date + relativedelta(months=i)).strftime("%b %y").upper()
-            for i in range(months_ahead)
-        ]
-        logger.debug("Generated expiry suffixes", extra={"process_able_date": str(process_able_date), "months_ahead": months_ahead, "suffixes": suffixes})
-        return suffixes
-
     def _initialize(self) -> None:
         logger.info("Initializing provider, fetching master instrument")
         try:

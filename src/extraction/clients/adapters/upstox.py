@@ -66,9 +66,9 @@ class UpstoxAdapter(MarketDataProvider):
             raise
 
     def fetch_instrument(self, row: dict, variation: str, date: str, interval: int):
-        expiry = row.get("expiry")
+        expiry = row.get("symbol_expiry")
 
-        if (expiry is not None and datetime.now().date() > datetime.fromtimestamp(expiry / 1000, tz=ZoneInfo("Asia/Kolkata")).date()):
+        if (expiry is not None and datetime.now().date() > expiry):
             return self.fetch_expired_historical_instrument(
                 context=row,
                 interval=interval,
@@ -189,40 +189,10 @@ class UpstoxAdapter(MarketDataProvider):
         logger.debug("Normalized candles", extra={"instrument_key": instrument_key, "trading_symbol": trading_symbol, "candle_count": len(validated_candles)})
         return validated_candles
 
-    def __extract_name(self, context) -> str:
-        # 6. Build normalized name from trading_symbol (strict)
-        segment = context.get("segment", "").lower()
-        trading_symbol = context.get("trading_symbol", "")
-
-        if "fo" in segment:
-            parts = trading_symbol.split()
-            if len(parts) < 5:
-                logger.error("FO trading_symbol format unexpected", extra={"trading_symbol": trading_symbol, "parts_count": len(parts)})
-                raise ValueError(f"FO trading_symbol format unexpected: '{trading_symbol}' (expected 6+ parts)")
-            # Format: SYMBOL EXPIRY STRIKE OPTION_TYPE (e.g., "NIFTY 24AUG 5000 CE")
-            symbol = context.get("asset_symbol", "")
-            strike = int(context.get("strike_price", ""))
-            strike = "" if strike == 0 else str(strike)
-            instrument_type = context.get("instrument_type", "")
-            expiry = context.get("expiry", "")
-            if expiry == None:
-                expiry_date = "".join(parts[-3:])
-            else:
-                expiry_date = datetime.fromtimestamp(expiry / 1000, tz=timezone.utc).strftime("%d%b%y").upper()
-                
-            name = symbol + "_" + expiry_date + "_" + strike + "_" + instrument_type
-        else:
-            name = context.get("name", "").upper()
-            if not name:
-                logger.error("INDEX segment missing 'name' in context", extra={"context_keys": list(context.keys())})
-                raise ValueError(f"INDEX segment missing 'name' in context")
-
-        return name
-
     def __normalize_candles(self, candle, context) -> list:
         # Validate timestamp is parseable
         ts = candle[0]
-        name = self.__extract_name(context)
+        name = context.get("symbol_name", "")
         dt = datetime.fromisoformat(candle[0])
 
         if not isinstance(ts, str):

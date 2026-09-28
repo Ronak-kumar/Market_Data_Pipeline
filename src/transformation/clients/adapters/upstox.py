@@ -15,24 +15,28 @@ class UpstoxTransformationAdapter(DataTransformer):
     def fno_transformation(self, df: DataFrame) -> DataFrame:
         logger.info("Starting FNO transformation", extra={"input_rows": df.height})
         ### Instrument type extraction 
+
         df = df.with_columns(
-            pl.col("Ticker").str.split("_").list.get(0).alias("Symbol"),
-            pl.col("Ticker").str.split("_").list.get(1).alias("Expiry"),
-            pl.col("Ticker").str.split("_").list.get(2).alias("Strike"),
-            pl.col("Ticker").str.split("_").list.get(3).alias("Instrument_type"),
+            pl.col("Ticker").str.split("-").list.get(0)
+            .alias("Symbol"),
+
+            pl.col("Ticker").str.split("-").list.get(1)
+            .alias("Expiry"),
+
+            pl.when(pl.col("Ticker").str.ends_with("-FUT"))
+            .then(pl.lit(0))
+            .otherwise(pl.col("Ticker").str.split("-").list.get(2))
+            .alias("Strike"),
+
+            pl.when(pl.col("Ticker").str.ends_with("-FUT"))
+            .then(pl.lit("FUT")).otherwise(pl.col("Ticker").str.split("-").list.get(-1))
+            .alias("Instrument_type"),
         )
 
         df = df.with_columns(
             [
-                pl.col("Ticker").str.replace_all("_", "")
+                pl.col("Ticker").str.replace_all("-", "")
             ]
-        )
-        ### Asigning Fut strike to be 0 
-        df = df.with_columns(
-            pl.when(pl.col("Instrument_type") == "FUT")
-            .then(pl.lit(0))
-            .otherwise(pl.col("Strike"))
-            .alias("Strike")
         )
 
         expected_columns = [

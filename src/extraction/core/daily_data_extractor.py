@@ -12,6 +12,7 @@ from cloud import cloud_discovery, cloud_registry
 from transformation.orchestrator import transform_data
 from transformation.clients import transformer_discovery, transformer_registry
 from extraction.models.data_models import ClientObject, CloudObject, ExtractionConfig
+from dateutil.relativedelta import relativedelta
 
 logger = get_logger(__name__)
 
@@ -21,7 +22,7 @@ class DailyDataExtractor:
         self._initialize_client()
         self._initialize_cloud_clients()
         self._config()
-        self.segment_type_map = {segment: segment_type for segment_type, segments in self._settings_config.broker_configuration.processable_segments.items() for segment in segments}
+        self.segment_type_map = self._settings_config.broker_configuration.processable_segments
 
     def _config(self):
         expiry_suffix_duration = self._settings_config.extractor_settings.expiry_duration
@@ -139,7 +140,11 @@ class DailyDataExtractor:
     def _day_process(self, date, master_instrument, variation) -> dict:
         """ Per day processing following 3 steps"""
         date_str = datetime.strftime(date, "%Y-%m-%d")
-        self.client_object.provider._expiry_suffixes = self.client_object.provider.get_expiry_suffixes(process_able_date=date, months_ahead=self.extraction_config.expiry_suffix_duration)
+
+        accepted_expiry_bar = date + relativedelta(months=3)
+        master_instrument = master_instrument.filter(
+            ~((pl.col("symbol_asset_class") == "FO")
+                & (pl.col("symbol_expiry").dt.date() > accepted_expiry_bar)))
         logger.debug("Expiry suffixes loaded", extra={"date": date_str, "suffixes": self.extraction_config.expiry_suffix_duration})
 
         # Process day data
@@ -148,30 +153,35 @@ class DailyDataExtractor:
         # Push processed data to datalake
         self._push_to_cloud(processed_data)
         # Create silver data
-        transform_data({date: processed_data}, self.client_object.transformer, self.segment_type_map)
+        silver_processed_data = transform_data({date: processed_data}, self.client_object.transformer, self.segment_type_map)
+        self._push_to_cloud(silver_processed_data)
 
         return processed_data
 
     def _processing_day(self, master_instrument, provider, date, variation) -> Dict[str, pl.DataFrame]:
         logger.info("Starting daily processing", extra={"date": date, "variation": variation})
 
-        segment_map = {segment: pl.DataFrame() for segment in self.segment_type_map.keys()}
-        if len(segment_map) == 0:
+        segment_list = self.segment_type_map
+        segment_map = {}
+        if len(segment_list) == 0:
             logger.warning("No segment selected for processing", extra={"processable_segments": self.extraction_config.processable_segments})
             return segment_map
 
         data_fetching_interval = self.extraction_config.extraction_interval
         logger.debug("Processing configuration", extra={"interval": data_fetching_interval, "segments": list(segment_map.keys())})
 
-        for segment, _ in segment_map.items():
+        for segment in segment_list:
             logger.info("Processing segment", extra={"segment": segment})
             segment_df = master_instrument.filter(pl.col("segment") == segment)
             logger.debug("Segment filtered", extra={"segment": segment, "instrument_count": segment_df.height})
 
+            symbol_asset_class = segment_df['symbol_asset_class'].unique()[0]
+            segment_final_name = segment if symbol_asset_class in segment else segment + f"_{symbol_asset_class}"
+
             segment_rows, fetched_count, skipped_count, error_count = self._fetch_segment(segment_df, segment, provider, date, variation)
 
             logger.info("Segment fetch complete", extra={
-                "segment": segment,
+                "segment": segment_final_name,
                 "fetched": fetched_count,
                 "skipped": skipped_count,
                 "errors": error_count,
@@ -179,19 +189,19 @@ class DailyDataExtractor:
             })
 
             if not segment_rows:
-                logger.warning("No data for segment", extra={"segment": segment})
-                segment_map[segment] = pl.DataFrame()
+                logger.warning("No data for segment", extra={"segment": segment_final_name})
+                # segment_map[segment_final_name] = pl.DataFrame()
                 continue
 
             segment_frame = pl.DataFrame(segment_rows, orient="row", schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"], )
-            logger.debug("Segment DataFrame created", extra={"segment": segment, "rows": segment_frame.height, "columns": segment_frame.columns})
+            logger.debug("Segment DataFrame created", extra={"segment": segment_final_name, "rows": segment_frame.height, "columns": segment_frame.columns})
 
             saving_path = Path(__file__).parent.parent / "cache" / self.client_object.client_name / "Bronze" / date
             saving_path.mkdir(parents=True, exist_ok=True)
-            output_path = saving_path / f"{segment}.parquet"
+            output_path = saving_path / f"{segment_final_name}.parquet"
             segment_frame.write_parquet(output_path)
-            logger.info("Segment written to Bronze layer", extra={"segment": segment, "output_path": str(output_path), "rows": segment_frame.height})
-            segment_map[segment] = output_path
+            logger.info("Segment written to Bronze layer", extra={"segment": segment_final_name, "output_path": str(output_path), "rows": segment_frame.height})
+            segment_map[segment_final_name] = output_path
 
         return segment_map
 
@@ -205,10 +215,6 @@ class DailyDataExtractor:
         for row in pbar:
             trading_symbol = row.get("trading_symbol", "")
 
-            if self._should_skip_instrument(row, segment, provider):
-                skipped_count += 1
-                continue
-
             try:
                 candles = provider.fetch_instrument(
                     row=row,
@@ -221,7 +227,6 @@ class DailyDataExtractor:
                 error_count += 1
                 logger.error("Failed to fetch candles",
                     extra={
-                        "instrument_key": row["instrument_key"],
                         "trading_symbol": row.get("trading_symbol", ""),
                     })
                 continue
@@ -235,19 +240,6 @@ class DailyDataExtractor:
             fetched_count += 1
 
         return rows, fetched_count, skipped_count, error_count
-
-    def _should_skip_instrument(self, row: dict, segment: str, provider: Any) -> bool:
-        # F&O filtering
-        segment_type = self.segment_type_map[segment]
-        if "fo" in segment_type.lower():
-            trading_symbol = row.get("trading_symbol", "")
-
-            if not any(
-                expiry in trading_symbol
-                for expiry in provider._expiry_suffixes):
-                return True
-
-        return False
     
 if __name__ == "__main__":
     main_runner = DailyDataExtractor()
