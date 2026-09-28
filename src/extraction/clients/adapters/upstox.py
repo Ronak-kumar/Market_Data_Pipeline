@@ -6,6 +6,7 @@ from shared.observability import get_logger
 from extraction.clients.registry import client_registry
 from pathlib import Path
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 logger = get_logger(__name__)
 
@@ -48,8 +49,8 @@ class UpstoxAdapter(MarketDataProvider):
     def _fetch_master_instrument(self):
         """Normalize master instrument for all the adapters"""
         logger.info("Fetching master instrument list")
+        self._load_token()
         try:
-            self._load_token()
             logger.debug("Making request to master URL", extra={"url": self.MASTER_URL})
             response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
             response.raise_for_status()
@@ -64,14 +65,41 @@ class UpstoxAdapter(MarketDataProvider):
             logger.error("Error decompressing or decoding JSON", extra={"error": str(e)}, exc_info=True)
             raise
 
-    def fetch_instrument(self, context: dict, interval: int):
+    def fetch_instrument(self, row: dict, variation: str, date: str, interval: int):
+        expiry = row.get("symbol_expiry")
+
+        if (expiry is not None and datetime.now().date() > expiry):
+            return self.fetch_expired_historical_instrument(
+                context=row,
+                interval=interval,
+                start_date=date,
+                end_date=date,
+            )
+
+        if variation == "intraday":
+            return self.fetch_instrument_intraday(
+                context=row,
+                interval=interval,
+            )
+
+        if variation == "historical":
+            return self.fetch_historical_instrument(
+                context=row,
+                interval=interval,
+                start_date=date,
+                end_date=date,
+            )
+
+        return None
+
+    def fetch_instrument_intraday(self, context: dict, interval: int):
         instrument_key = context["instrument_key"]
         url = self.INTRADAY_URL.format(instrument_key=instrument_key, interval=interval)
         logger.debug("Fetching intraday instrument", extra={"instrument_key": instrument_key, "interval": interval, "url": url})
         response = self._retry_policy(url=url)
         if response is None:
             logger.warning("All retry attempts exhausted for intraday fetch", extra={"instrument_key": instrument_key})
-            return None, None
+            return None
         return self._normalize_response(response=response, context=context)
 
     def fetch_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
@@ -81,7 +109,7 @@ class UpstoxAdapter(MarketDataProvider):
         response = self._retry_policy(url=url)
         if response is None:
             logger.warning("All retry attempts exhausted for historical fetch", extra={"instrument_key": instrument_key})
-            return None, None
+            return None
         return self._normalize_response(response=response, context=context)
 
     def fetch_expired_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
@@ -91,7 +119,7 @@ class UpstoxAdapter(MarketDataProvider):
         response = self._retry_policy(url=url)
         if response is None:
             logger.warning("All retry attempts exhausted for expired historical fetch", extra={"instrument_key": instrument_key})
-            return None, None
+            return None
         return self._normalize_response(response=response, context=context)
 
     def _normalize_response(self, response: requests.Response, context: dict):
@@ -101,6 +129,8 @@ class UpstoxAdapter(MarketDataProvider):
         Raises ValueError with details if response structure is unexpected.
         """
         instrument_key = context.get("instrument_key", "unknown")
+        trading_symbol = context.get("trading_symbol", "")
+
         logger.debug("Normalizing response", extra={"instrument_key": instrument_key, "status_code": response.status_code})
 
         # 1. Validate HTTP response
@@ -141,7 +171,7 @@ class UpstoxAdapter(MarketDataProvider):
 
         if not candles:
             logger.debug("No candles returned", extra={"instrument_key": instrument_key})
-            return None, None
+            return None
 
         # 5. Validate each candle structure - Upstox format: [timestamp, open, high, low, close, volume, oi]
         validated_candles = []
@@ -153,55 +183,41 @@ class UpstoxAdapter(MarketDataProvider):
                 logger.error("Candle has insufficient elements", extra={"index": i, "length": len(candle), "candle": candle})
                 raise ValueError(f"Candle {i}: expected at least 6 elements (ts,o,h,l,c,v), got {len(candle)}: {candle}")
 
-            # Validate timestamp is parseable
-            ts = candle[0]
-            if not isinstance(ts, str):
-                logger.error("Candle timestamp not string", extra={"index": i, "actual_type": type(ts).__name__})
-                raise ValueError(f"Candle {i}: timestamp must be string, got {type(ts).__name__}")
-
-            # Validate numeric fields
-            try:
-                validated_candle = [
-                    ts,  # timestamp (string)
-                    float(candle[1]),  # open
-                    float(candle[2]),  # high
-                    float(candle[3]),  # low
-                    float(candle[4]),  # close
-                    float(candle[5]),  # volume
-                ]
-                # Optional: open interest (7th element)
-                if len(candle) > 6 and candle[6] is not None:
-                    validated_candle.append(float(candle[6]))
-                else:
-                    validated_candle.append(0.0)
-            except (ValueError, TypeError) as e:
-                logger.error("Non-numeric OHLCV in candle", extra={"index": i, "candle": candle, "error": str(e)})
-                raise ValueError(f"Candle {i}: non-numeric OHLCV: {candle}") from e
-
+            validated_candle = self.__normalize_candles(candle=candle, context=context)
             validated_candles.append(validated_candle)
 
-        # 6. Build normalized name from trading_symbol (strict)
-        segment = context.get("segment", "").lower()
-        trading_symbol = context.get("trading_symbol", "")
+        logger.debug("Normalized candles", extra={"instrument_key": instrument_key, "trading_symbol": trading_symbol, "candle_count": len(validated_candles)})
+        return validated_candles
 
-        if "fo" in segment:
-            parts = trading_symbol.split()
-            if len(parts) < 5:
-                logger.error("FO trading_symbol format unexpected", extra={"trading_symbol": trading_symbol, "parts_count": len(parts)})
-                raise ValueError(f"FO trading_symbol format unexpected: '{trading_symbol}' (expected 6+ parts)")
-            # Format: SYMBOL EXPIRY STRIKE OPTION_TYPE (e.g., "NIFTY 24AUG 5000 CE")
-            symbol = context.get("asset_symbol", "")
-            strike = int(context.get("strike_price", ""))
-            strike = "" if strike == 0 else str(strike)
-            instrument_type = context.get("instrument_type", "")
-            expiry = context.get("expiry", "")
-            expiry_date = datetime.fromtimestamp(expiry / 1000, tz=timezone.utc).strftime("%d%b%y").upper()
-            name = symbol + "_" + expiry_date + "_" + strike + "_" + instrument_type
-        else:
-            name = context.get("name", "").upper()
-            if not name:
-                logger.error("INDEX segment missing 'name' in context", extra={"context_keys": list(context.keys())})
-                raise ValueError(f"INDEX segment missing 'name' in context")
+    def __normalize_candles(self, candle, context) -> list:
+        # Validate timestamp is parseable
+        ts = candle[0]
+        name = context.get("symbol_name", "")
+        dt = datetime.fromisoformat(candle[0])
 
-        logger.debug("Normalized candles", extra={"instrument_key": instrument_key, "name": name, "candle_count": len(validated_candles)})
-        return validated_candles, name
+        if not isinstance(ts, str):
+            logger.error("Candle timestamp not string", extra={"Trading_Symbol": name, "actual_type": type(ts).__name__})
+            raise ValueError(f"Candle {name}: timestamp must be string, got {type(ts).__name__}")
+
+        # Validate numeric fields
+        try:
+            validated_candle = [
+                name,
+                dt.strftime("%d-%m-%Y"),
+                dt.strftime("%H:%M:%S"),
+                float(candle[1]),  # open
+                float(candle[2]),  # high
+                float(candle[3]),  # low
+                float(candle[4]),  # close
+                float(candle[5]),  # volume
+            ]
+            # Optional: open interest (7th element)
+            if len(candle) > 6 and candle[6] is not None:
+                validated_candle.append(float(candle[6]))
+            else:
+                validated_candle.append(0.0)
+        except (ValueError, TypeError) as e:
+            logger.error("Non-numeric OHLCV in candle", extra={"Trading_Symbol": name, "candle": candle, "error": str(e)})
+            raise ValueError(f"Trading_Symbol {name}: non-numeric OHLCV: {candle}") from e
+
+        return validated_candle

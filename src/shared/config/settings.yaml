@@ -6,18 +6,12 @@ application:
   debug: true
 
 extractor_settings:
-  client: "Upstox"
+  client: "UPSTOX"
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  processable_segments:
-    - "NSE_INDEX"
-    # - "NSE_FO"
-    # - "BSE_INDEX"
-    # - "BSE_FO"
-    # - "MCX_FO"
-  start_date: "2026-09-15"
-  end_date: "2026-09-15"
+  start_date: "2026-09-21"
+  end_date: "2026-09-21"
 
 cloud_settings:
   client: "aws"
@@ -25,8 +19,49 @@ cloud_settings:
   storage_name: "marketdata-pipeline"
   destination_folder: "market_data_storage"
 
-transformation_settings:
-  spot_name_mapping:
+broker_configuration:
+  processable_segments:
+    - "NSE_INDEX"
+    - "BSE_INDEX"
+    - "GLOBAL_INDEX"
+    - "GLOBAL_INDICATOR"
+
+    - "NSE_FO"
+    - "BSE_FO"
+    - "MCX_FO"
+    - "BCD_FO"
+    - "NCD_FO"
+
+    - "BSE_EQ"
+    - "NSE_EQ"
+
+    - "NSE_COM"
+
+    # - "BSE_CASH"
+    # - "NSE_CASH"
+    # - "BSE_FNO"
+    # - "NSE_COMMODITY"
+    # - "NSE_FNO"
+    # - "MCX_COMMODITY"
+
+  session_bounds:
+    NSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    NSE_FO:
+      start: "09:15"
+      end: "15:40"
+    BSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    BSE_FO:
+      start: "09:15"
+      end: "15:40"
+    MCX_FO:
+      start: "09:15"
+      end: "23:30"
+
+  symbol_name_mapping:
     "NIFTY FIN SERVICE": "FINNIFTY"
     "NIFTY 50": "NIFTY50"
     "Nifty50": "NIFTY50"
@@ -39,17 +74,3 @@ transformation_settings:
     "BSEBANKEX": "BANKEX"
     "BSE SENSEX": "SENSEX"
     "BSESENSEX": "SENSEX"
-
-  session_bounds:
-    indices:
-      start: "09:15"
-      end: "15:40"
-    fno:
-      start: "09:15"
-      end: "15:40"
-    equity:
-      start: "09:15"
-      end: "15:40"
-    mcx:
-      start: "09:15"
-      end: "23:30"
