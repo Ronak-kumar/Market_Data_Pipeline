@@ -96,7 +96,7 @@ class DailyDataExtractor:
             try:
                 storage_object = self.cloud_object.storage_object
                 destination_folder = self.cloud_object.destination_folder
-                self._cloud_object.upload_files(filepath=filepath, bucket_name=storage_object, destination_prefix=destination_folder)
+                self.cloud_object.cloud_instance.upload_files(filepath=filepath, bucket_name=storage_object, destination_prefix=destination_folder)
                 logger.info("Cloud upload success", extra={"filepath": str(filepath)})
             except Exception as e:
                 logger.warning("Cloud upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
@@ -145,6 +145,7 @@ class DailyDataExtractor:
         master_instrument = master_instrument.filter(
             ~((pl.col("symbol_asset_class") == "FO")
                 & (pl.col("symbol_expiry").dt.date() > accepted_expiry_bar)))
+
         logger.debug("Expiry suffixes loaded", extra={"date": date_str, "suffixes": self.extraction_config.expiry_suffix_duration})
 
         # Process day data
@@ -153,8 +154,10 @@ class DailyDataExtractor:
         # Push processed data to datalake
         self._push_to_cloud(processed_data)
         # Create silver data
-        silver_processed_data = transform_data({date: processed_data}, self.client_object.transformer, self.segment_type_map)
-        self._push_to_cloud(silver_processed_data)
+        silver_processed_data = transform_data({date: processed_data}, self.client_object.transformer)
+        for date, silver_data in silver_processed_data.items():
+            logger.info("Silver data created", extra={"date": date})
+            self._push_to_cloud(silver_data)
 
         return processed_data
 
@@ -175,13 +178,11 @@ class DailyDataExtractor:
             segment_df = master_instrument.filter(pl.col("segment") == segment)
             logger.debug("Segment filtered", extra={"segment": segment, "instrument_count": segment_df.height})
 
-            symbol_asset_class = segment_df['symbol_asset_class'].unique()[0]
-            segment_final_name = segment if symbol_asset_class in segment else segment + f"_{symbol_asset_class}"
 
             segment_rows, fetched_count, skipped_count, error_count = self._fetch_segment(segment_df, segment, provider, date, variation)
 
             logger.info("Segment fetch complete", extra={
-                "segment": segment_final_name,
+                "segment": segment,
                 "fetched": fetched_count,
                 "skipped": skipped_count,
                 "errors": error_count,
@@ -189,19 +190,19 @@ class DailyDataExtractor:
             })
 
             if not segment_rows:
-                logger.warning("No data for segment", extra={"segment": segment_final_name})
+                logger.warning("No data for segment", extra={"segment": segment})
                 # segment_map[segment_final_name] = pl.DataFrame()
                 continue
 
-            segment_frame = pl.DataFrame(segment_rows, orient="row", schema=["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"], )
-            logger.debug("Segment DataFrame created", extra={"segment": segment_final_name, "rows": segment_frame.height, "columns": segment_frame.columns})
+            segment_frame = pl.DataFrame(segment_rows, orient="row", schema=["Asset_Class", "Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"], )
+            logger.debug("Segment DataFrame created", extra={"segment": segment, "rows": segment_frame.height, "columns": segment_frame.columns})
 
             saving_path = Path(__file__).parent.parent / "cache" / self.client_object.client_name / "Bronze" / date
             saving_path.mkdir(parents=True, exist_ok=True)
-            output_path = saving_path / f"{segment_final_name}.parquet"
+            output_path = saving_path / f"{segment}.parquet"
             segment_frame.write_parquet(output_path)
-            logger.info("Segment written to Bronze layer", extra={"segment": segment_final_name, "output_path": str(output_path), "rows": segment_frame.height})
-            segment_map[segment_final_name] = output_path
+            logger.info("Segment written to Bronze layer", extra={"segment": segment, "output_path": str(output_path), "rows": segment_frame.height})
+            segment_map[segment] = output_path
 
         return segment_map
 

@@ -1,6 +1,5 @@
-def main():
-    print("Hello from market-data-pipeline!")
-
+from src.extraction.core.daily_data_extractor import DailyDataExtractor
 
 if __name__ == "__main__":
-    main()
+    main_runner = DailyDataExtractor()
+    date_map = main_runner.process()

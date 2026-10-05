@@ -62,3 +62,10 @@ class UpstoxTransformationAdapter(DataTransformer):
         result = df.select(expected_columns)
         logger.info("Equity transformation completed", extra={"output_rows": result.height, "columns": result.columns})
         return result
+
+    def asset_segregation(self, df: DataFrame) -> dict[str, DataFrame]:
+        logger.info("Starting asset segregation", extra={"input_rows": df.height})
+        equity_df = df.filter(pl.col("Asset_Class") == "CASH")
+        fno_df = df.filter(pl.col("Asset_Class") == "FO")
+        logger.info("Asset segregation completed", extra={"equity_rows": equity_df.height, "fno_rows": fno_df.height})
+        return {"equity": equity_df, "fno": fno_df}

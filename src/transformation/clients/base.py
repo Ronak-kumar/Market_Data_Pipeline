@@ -51,7 +51,7 @@ class DataTransformer:
                 raise
 
         ### Null Validation
-        required_columns = ["Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
+        required_columns = ["Asset_Class", "Ticker", "Date", "Time", "Open", "High", "Low", "Close", "Volume", "Open Interest"]
         try:
             validator.null_validation(df, required_columns=required_columns)
             logger.debug("Null validation passed")

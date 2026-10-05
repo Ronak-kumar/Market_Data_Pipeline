@@ -70,6 +70,7 @@ class IntradayRangeFiller:
                 # Fill missing metadata from previous row
                 pl.col("Exchange").forward_fill().alias("Exchange"),
                 pl.col("Ticker").forward_fill().alias("Ticker"),
+                pl.col("Asset_Class").forward_fill().alias("Asset_Class"),
             ).drop("_previous_close")
                
 

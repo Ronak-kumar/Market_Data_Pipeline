@@ -10,8 +10,8 @@ extractor_settings:
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: "2026-09-21"
-  end_date: "2026-09-21"
+  start_date: "2026-10-01"
+  end_date: "2026-10-01"
 
 cloud_settings:
   client: "aws"
