@@ -6,12 +6,12 @@ application:
   debug: true
 
 extractor_settings:
-  client: "groww"
+  client: "upstox"
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: "2026-10-07"
-  end_date: "2026-10-07"
+  start_date: "2026-10-08"
+  end_date: "2026-10-08"
 
 cloud_settings:
   push_to_cloud: true
@@ -22,27 +22,27 @@ cloud_settings:
 broker_configuration:
   processable_segments:
     ### Upstox ###
-    # - "NSE_INDEX"
-    # - "BSE_INDEX"
-    # - "GLOBAL_INDEX"
-    # - "GLOBAL_INDICATOR"
-    # - "NSE_FO"
-    # - "BSE_FO"
-    # - "MCX_FO"
-    # - "BCD_FO"
-    # - "NCD_FO"
-    # - "BSE_EQ"
-    # - "NSE_EQ"
-    # - "NSE_COM"
+    - "NSE_INDEX"
+    - "BSE_INDEX"
+    - "GLOBAL_INDEX"
+    - "GLOBAL_INDICATOR"
+    - "NSE_FO"
+    - "BSE_FO"
+    - "MCX_FO"
+    - "BCD_FO"
+    - "NCD_FO"
+    - "BSE_EQ"
+    - "NSE_EQ"
+    - "NSE_COM"
 
     # Groww #
-    - "NSE_EQ"
-    - "BSE_FO"
-    - "BSE_INDEX"
-    - "NSE_FO"
-    - "BSE_EQ"
-    - "MCX_FO"
-    - "NSE_INDEX"
+    # - "NSE_EQ"
+    # - "BSE_FO"
+    # - "BSE_INDEX"
+    # - "NSE_FO"
+    # - "BSE_EQ"
+    # - "MCX_FO"
+    # - "NSE_INDEX"
 
     # Dhan #
     # - "NSE_EQ"
