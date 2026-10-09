@@ -24,11 +24,6 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> No
             segment = "_".join(segment_parts[:2])
 
             normalized_df = transformer.base_transformation(filepath=filepath, segment=segment)
-            
-            if normalized_df.height == 0:
-                logger.warning(f"Normalized DataFrame is empty, skipping further processing filepath = {filepath}")
-                continue
-
             logger.debug("Base transformation completed", extra={"segment": segment, "rows": normalized_df.height})
 
             range = app_settings.broker_configuration.session_bounds.get(segment, {})

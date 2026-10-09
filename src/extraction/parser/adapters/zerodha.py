@@ -1,7 +1,6 @@
 from extraction.parser import InstrumentParser, parser_registry
 import polars as pl
 from shared.observability import get_logger
-import re
 
 logger = get_logger(__name__)
 
@@ -11,56 +10,46 @@ class InstrumentValidationError(ValueError):
     pass
 
 
-@parser_registry.register("dhan")
-class DhanInstrumentParser(InstrumentParser):
+@parser_registry.register("zerodha")
+class ZerodhaInstrumentParser(InstrumentParser):
 
-    # Dhan segment codes from instrument master
+    # Zerodha segments
     AVAILABLE_SEGMENTS = [
         "NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO", 
-        "NSE_IDX", "BSE_IDX", "MCX_FNO", "MCX_COM",
-        "NSE_CUR", "BSE_CUR", "NSE_COM", "BSE_COM"
+        "NSE_INDEX", "BSE_INDEX", "MCX_FNO", "NSE_CURRENCY", "BSE_CURRENCY"
     ]
 
     def parse(self, data) -> pl.DataFrame:
-        logger.info("Parsing Dhan instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})
+        logger.info("Parsing Zerodha instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})
         df = pl.DataFrame(data)
         result = self._normalize(df)
-        logger.info("Dhan instrument parsing complete", extra={"rows": result.height})
+        logger.info("Zerodha instrument parsing complete", extra={"rows": result.height})
         return result
 
     def _normalize(self, df: pl.DataFrame) -> pl.DataFrame:
-        logger.debug("Normalizing Dhan instrument schema", extra={"input_columns": df.columns, "input_rows": df.height})
+        logger.debug("Normalizing Zerodha instrument schema", extra={"input_columns": df.columns, "input_rows": df.height})
         
         # Validate required columns exist
-        required_cols = ["SECURITY_ID", "EXCH_ID", "SEGMENT", "INSTRUMENT", 
-                         "SYMBOL_NAME", "SEM_TRADING_SYMBOL", "DISPLAY_NAME", "INSTRUMENT_TYPE"]
+        required_cols = ["instrument_token", "exchange_token", "tradingsymbol", "name", "expiry", 
+                         "strike", "tick_size", "lot_size", "instrument_type", "segment", "exchange"]
         
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
-            logger.warning("Some expected columns missing from Dhan data", extra={"missing": missing})
+            logger.warning("Some expected columns missing from Zerodha data", extra={"missing": missing})
         
         # Rename columns to match expected schema
         column_mapping = {
-            "SECURITY_ID": "instrument_key",
-            "EXCH_ID": "exchange",
-            "SEGMENT": "segment_code",
-            "INSTRUMENT": "instrument_type",
-            "SYMBOL_NAME": "symbol_name",
-            "UNDERLYING_SYMBOL": "underlying_symbol",
-            "DISPLAY_NAME": "display_name",
-            "INSTRUMENT_TYPE": "instrument_type_exch",
-            "SEM_EXPIRY_CODE": "expiry_code",
-            "SM_EXPIRY_DATE": "expiry_date",
-            "LOT_SIZE": "lot_size",
-            "TICK_SIZE": "tick_size",
-            "UNDERLYING_SECURITY_ID": "underlying_security_id",
-            "UNDERLYING_SYMBOL": "underlying_symbol",
-            "ISIN": "isin",
-            "SERIES": "series",
-            "STRIKE_PRICE": "strike_price",
-            "OPTION_TYPE": "option_type",
-
-            "SEM_TRADING_SYMBOL": "trading_symbol",
+            "instrument_token": "instrument_key",
+            "exchange_token": "exchange_token",
+            "tradingsymbol": "trading_symbol",
+            "name": "symbol_name",
+            "expiry": "expiry_date",
+            "strike": "strike_price",
+            "tick_size": "tick_size",
+            "lot_size": "lot_size",
+            "instrument_type": "instrument_type",
+            "segment": "segment_code",
+            "exchange": "exchange",
         }
         
         # Apply renaming for columns that exist
@@ -69,44 +58,67 @@ class DhanInstrumentParser(InstrumentParser):
         
         # Create standardized segment field
         df = self._create_segment_field(df)
-        
+
         # Create trading_symbol
         df = self._create_trading_symbol(df)
         
-        df = self._validate_symbols(df)        
-
-        logger.debug("Dhan schema normalization complete", extra={"output_columns": df.columns, "output_rows": df.height})
+        df = self._validate_symbols(df)
+        
+        # Create symbol_asset_class
+        df = self._create_asset_class(df)
+        
+        # Parse expiry date
+        if "expiry_date" in df.columns:
+            df = df.with_columns(
+                pl.col("expiry_date").str.strptime(pl.Date, "%Y-%m-%d", strict=False).alias("symbol_expiry")
+            )
+        else:
+            df = df.with_columns(pl.lit(None).cast(pl.Date).alias("symbol_expiry"))
+        
+        # Ensure instrument_key is string
+        df = df.with_columns(pl.col("instrument_key").cast(pl.Utf8))
+        
+        # Create display_name
+        if "display_name" not in df.columns:
+            df = df.with_columns(pl.col("symbol_name").alias("display_name"))
+        
+        # Select and order final columns
+        final_cols = [
+            "instrument_key", "trading_symbol", "symbol_name", "display_name",
+            "exchange", "segment", "segment_code", "instrument_type",
+            "expiry_date", "symbol_expiry", "strike_price", "lot_size", "tick_size",
+            "symbol_asset_class"
+        ]
+        
+        # Keep only columns that exist
+        final_cols = [c for c in final_cols if c in df.columns]
+        df = df.select(final_cols)
+        
+        logger.debug("Zerodha schema normalization complete", extra={"output_columns": df.columns, "output_rows": df.height})
         return df
 
     def _create_segment_field(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Create standardized segment field from exchange + segment_code."""
-        # Dhan segment codes: E=Equity, D=Derivatives, I=Index, C=Currency, M=Commodity
-        # Exchange: NSE, BSE, MCX
-        df = df.with_columns((pl.col("exchange") + "_" + pl.col("segment_code")).alias("exchange_segment"))
+        """Create standardized segment field from exchange + segment_code + instrument_type."""
+        # Zerodha segments: NSE, BSE, NFO, BFO, MCX, CDS, BCD
+        # instrument_type: EQ, FUT, CE, PE, etc.
         
         segment_expr = (
             pl.when(pl.col("exchange") == "NSE").then(
-                pl.when(pl.col("segment_code") == "E").then(pl.lit("NSE_EQ"))
-                .when(pl.col("segment_code") == "D").then(pl.lit("NSE_FO"))
-                .when(pl.col("segment_code") == "I").then(pl.lit("NSE_INDEX"))
-                .when(pl.col("segment_code") == "C").then(pl.lit("NSE_CURRENCY"))
-                .when(pl.col("segment_code") == "M").then(pl.lit("NSE_COM"))
-                .otherwise(pl.lit("None"))
+                pl.when(pl.col("instrument_type") == "EQ").then(pl.lit("NSE_EQ"))
+                .when(pl.col("instrument_type").is_in(["FUT", "CE", "PE"])).then(pl.lit("NSE_FNO"))
+                .otherwise(pl.lit("NSE_EQ"))
             )
             .when(pl.col("exchange") == "BSE").then(
-                pl.when(pl.col("segment_code") == "E").then(pl.lit("BSE_EQ"))
-                .when(pl.col("segment_code") == "D").then(pl.lit("BSE_FO"))
-                .when(pl.col("segment_code") == "I").then(pl.lit("BSE_INDEX"))
-                .when(pl.col("segment_code") == "C").then(pl.lit("BSE_CURRENCY"))
-                .when(pl.col("segment_code") == "M").then(pl.lit("BSE_COM"))
-                .otherwise(pl.lit("None"))
+                pl.when(pl.col("instrument_type") == "EQ").then(pl.lit("BSE_EQ"))
+                .when(pl.col("instrument_type").is_in(["FUT", "CE", "PE"])).then(pl.lit("BSE_FNO"))
+                .otherwise(pl.lit("BSE_EQ"))
             )
-            .when(pl.col("exchange") == "MCX").then(
-                pl.when(pl.col("segment_code") == "D").then(pl.lit("MCX_FO"))
-                .when(pl.col("segment_code") == "M").then(pl.lit("MCX_COMMODITY"))
-                .otherwise(pl.lit("None"))
-            )
-            .otherwise(pl.lit("None"))
+            .when(pl.col("exchange") == "NFO").then(pl.lit("NSE_FNO"))
+            .when(pl.col("exchange") == "BFO").then(pl.lit("BSE_FNO"))
+            .when(pl.col("exchange") == "MCX").then(pl.lit("MCX_FNO"))
+            .when(pl.col("exchange") == "CDS").then(pl.lit("NSE_CURRENCY"))
+            .when(pl.col("exchange") == "BCD").then(pl.lit("BSE_CURRENCY"))
+            .otherwise(pl.lit("NSE_EQ"))
         )
         
         return df.with_columns(segment_expr.alias("segment"))
@@ -115,9 +127,15 @@ class DhanInstrumentParser(InstrumentParser):
         """Create trading_symbol from symbol_name and exchange."""
         ## Create trading_symbol based on symbol_name, expiry_date, strike_price, and option_type0
         df = df.with_columns(
-            pl.col("option_type").replace({"XX": ""}).alias("option_type"),
+            pl.col("instrument_type").replace({"EQ": ""}).alias("option_type"),
             pl.col("expiry_date").str.strptime(pl.Date, "%Y-%m-%d", strict=False).alias("expiry_date")
         )
+
+        df = df.with_columns(
+            pl.col("symbol_name").alias("symbol_name_base"),
+            pl.col("trading_symbol").alias("trading_symbol_base"),)
+
+        df= df.with_columns(pl.when(pl.col("instrument_type").is_in(["EQ"])).then(pl.col("trading_symbol_base")).otherwise(pl.col("symbol_name_base")).alias("symbol_name"))
 
         ## Normalize expiry_date to format DDMMMYY (e.g., 15JAN24)
         df = df.with_columns(
@@ -155,7 +173,7 @@ class DhanInstrumentParser(InstrumentParser):
 
         trading_expr = (
             pl.concat_list([
-                pl.col("underlying_symbol").fill_null(""),
+                pl.col("symbol_name").fill_null(""),
                 pl.col("expiry_normalized").fill_null(""),
                 pl.col("strike_price").fill_null(""),
                 pl.col("option_type").fill_null(""),

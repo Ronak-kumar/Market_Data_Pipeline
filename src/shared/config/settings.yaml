@@ -6,56 +6,32 @@ application:
   debug: true
 
 extractor_settings:
-  client: "upstox"
+  client: "zerodha"
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: "2026-10-08"
-  end_date: "2026-10-08"
+  start_date: "2026-10-06"
+  end_date: "2026-10-06"
 
 cloud_settings:
-  push_to_cloud: true
   client: "aws"
+  push_to_cloud: true
   storage_name: "marketdata-pipeline"
   destination_folder: "market_data_storage"
 
 broker_configuration:
   processable_segments:
-    ### Upstox ###
+    - "NSE_EQ"
+    - "BSE_EQ"
+    - "NSE_FNO"
+    - "BSE_FNO"
     - "NSE_INDEX"
     - "BSE_INDEX"
-    - "GLOBAL_INDEX"
-    - "GLOBAL_INDICATOR"
-    - "NSE_FO"
-    - "BSE_FO"
-    - "MCX_FO"
-    - "BCD_FO"
-    - "NCD_FO"
-    - "BSE_EQ"
-    - "NSE_EQ"
+    - "MCX_FNO"
+    - "NSE_CURRENCY"
+    - "BSE_CURRENCY"
     - "NSE_COM"
-
-    # Groww #
-    # - "NSE_EQ"
-    # - "BSE_FO"
-    # - "BSE_INDEX"
-    # - "NSE_FO"
-    # - "BSE_EQ"
-    # - "MCX_FO"
-    # - "NSE_INDEX"
-
-    # Dhan #
-    # - "NSE_EQ"
-    # - "BSE_EQ"
-    # - "NSE_FNO"
-    # - "BSE_FNO"
-    # - "NSE_INDEX"
-    # - "BSE_INDEX"
-    # - "MCX_FNO"
-    # - "NSE_CURRENCY"
-    # - "BSE_CURRENCY"
-    # - "NSE_COM"
-    # - "BSE_COM"
+    - "BSE_COM"
 
   session_bounds:
     NSE_INDEX:

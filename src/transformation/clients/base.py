@@ -21,10 +21,6 @@ class DataTransformer:
 
         EXPECTED_SCHEMA = RAW_PARQUET_SCHEMA
 
-        if df.height == 0:
-            logger.warning(f"DataFrame is empty, returning empty DataFrame filepath = {filepath}")
-            return df
-
         if "Volume" not in df.columns:
             df = df.with_columns([
                 pl.lit(0, pl.UInt32).alias("Volume")
