@@ -5,10 +5,7 @@ from shared.observability import get_logger
 from extraction.clients.registry import client_registry
 from pathlib import Path
 from datetime import datetime
-from shared.utils import load_yaml_config
-from shared.config.settings_model import AppSettings
 from shared.utils import csv_reader
-import csv
 
 logger = get_logger(__name__)
 
@@ -108,7 +105,7 @@ class DhanAdapter(MarketDataProvider):
             logger.warning("Missing required fields for Dhan instrument", extra={"row": row})
             return None
 
-        return self._fetch_intraday(security_id, exchange_segment, instrument_type, interval, date)
+        return self._fetch_intraday(row, interval, date)
 
     def _get_exchange_segment(self, row: dict) -> str:
         """Map internal segment to Dhan exchangeSegment."""
@@ -148,10 +145,13 @@ class DhanAdapter(MarketDataProvider):
         }
         return mapping.get(instrument, "EQUITY")
 
-    def _fetch_intraday(self, security_id: str, exchange_segment: str, instrument_type: str, interval: int, date: str):
+    def _fetch_intraday(self, row: dict, interval: int, date: str):
         """Fetch intraday data for a single date."""
+        security_id = row.get("SEM_SMST_SECURITY_ID") or row.get("security_id") or row.get("SECURITY_ID")
+        exchange_segment = self._get_exchange_segment(row)
+        instrument_type = self._get_instrument_type(row)
+
         # Dhan intraday requires datetime range
-        from datetime import datetime, timedelta
         start_dt = datetime.strptime(date + " 09:15:00", "%Y-%m-%d %H:%M:%S")
         end_dt = datetime.strptime(date + " 15:30:00", "%Y-%m-%d %H:%M:%S")
         
@@ -169,7 +169,7 @@ class DhanAdapter(MarketDataProvider):
         response = self._retry_policy_post(self.HISTORICAL_INTRADAY_URL, payload)
         if response is None:
             return None
-        return self._normalize_response(response, {"security_id": security_id, "instrument_key": security_id})
+        return self._normalize_response(response, row)
 
     def _retry_policy_post(self, url: str, payload: dict):
         """POST retry policy for Dhan API."""
@@ -214,7 +214,7 @@ class DhanAdapter(MarketDataProvider):
 
     def _normalize_response(self, response: requests.Response, context: dict):
         """Normalize Dhan API response to standard candle format."""
-        security_id = context.get("security_id", "unknown")
+        security_id = context.get("SEM_SMST_SECURITY_ID") or context.get("security_id") or context.get("SECURITY_ID", "unknown")
         
         logger.debug("Normalizing Dhan response", extra={"security_id": security_id, "status_code": response.status_code})
 

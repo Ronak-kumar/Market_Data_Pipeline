@@ -102,9 +102,6 @@ class ZerodhaAdapter(MarketDataProvider):
     def fetch_instrument(self, row: dict, variation: str, date: str, interval: int):
         """Fetch historical candles for a Zerodha instrument."""
         instrument_token = row.get("instrument_token")
-        exchange = row.get("exchange", "")
-        tradingsymbol = row.get("tradingsymbol", "")
-        
         if not instrument_token:
             logger.warning("Missing instrument_token for Zerodha instrument", extra={"row": row})
             return None
@@ -113,13 +110,14 @@ class ZerodhaAdapter(MarketDataProvider):
         zerodha_interval = self.INTERVAL_MAP.get(interval, "day")
         
         if variation == "intraday":
-            return self._fetch_intraday(instrument_token, zerodha_interval, date)
+            return self._fetch_intraday(row, date, interval)
         elif variation == "historical":
-            return self._fetch_historical(instrument_token, zerodha_interval, date)
+            return self._fetch_historical(row, date, interval)
         return None
 
-    def _fetch_historical(self, instrument_token: int, interval: str, date: str):
+    def _fetch_historical(self, row: dict, date: str, interval: str):
         """Fetch historical data for a single date (or date range)."""
+        instrument_token = row.get("instrument_token")
         url = self.HISTORICAL_URL.format(instrument_token=instrument_token, interval=interval)
         
         # For daily data, we fetch the specific date
@@ -133,10 +131,11 @@ class ZerodhaAdapter(MarketDataProvider):
         response = self._retry_policy_get(url, params)
         if response is None:
             return None
-        return self._normalize_response(response, {"instrument_token": instrument_token, "tradingsymbol": tradingsymbol})
+        return self._normalize_response(response, row)
 
-    def _fetch_intraday(self, instrument_token: int, interval: str, date: str):
+    def _fetch_intraday(self, row: dict, date: str, interval: str):
         """Fetch intraday data for a single date."""
+        instrument_token = row.get("instrument_token")
         url = self.HISTORICAL_URL.format(instrument_token=instrument_token, interval=interval)
         
         params = {
@@ -149,7 +148,7 @@ class ZerodhaAdapter(MarketDataProvider):
         response = self._retry_policy_get(url, params)
         if response is None:
             return None
-        return self._normalize_response(response, {"instrument_token": instrument_token, "tradingsymbol": tradingsymbol})
+        return self._normalize_response(response, row)
 
     def _retry_policy_get(self, url: str, params: dict):
         """GET retry policy for Zerodha API."""
@@ -199,8 +198,6 @@ class ZerodhaAdapter(MarketDataProvider):
     def _normalize_response(self, response: requests.Response, context: dict):
         """Normalize Zerodha API response to standard candle format."""
         instrument_token = context.get("instrument_token", "unknown")
-        tradingsymbol = context.get("tradingsymbol", str(instrument_token))
-        
         logger.debug("Normalizing Zerodha response", extra={"instrument_token": instrument_token, "status_code": response.status_code})
 
         if response.status_code != 200:
@@ -247,7 +244,7 @@ class ZerodhaAdapter(MarketDataProvider):
                     dt = datetime.fromtimestamp(ts)
                 
                 validated_candle = [
-                    symbol_asset_type,  # asset class - will be overridden by parser
+                    symbol_asset_type,
                     name,
                     dt.strftime("%d-%m-%Y"),
                     dt.strftime("%H:%M:%S"),
