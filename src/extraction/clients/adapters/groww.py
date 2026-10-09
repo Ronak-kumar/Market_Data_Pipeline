@@ -165,6 +165,7 @@ class GrowwAdapter(MarketDataProvider):
         # Validate timestamp is parseable
         ts = candle[0]
         name = context.get("symbol_name", "")
+        symbol_asset_type = context.get("symbol_asset_class", "")
         dt = datetime.fromisoformat(candle[0])
 
         if not isinstance(ts, str):
@@ -174,6 +175,7 @@ class GrowwAdapter(MarketDataProvider):
         # Validate numeric fields
         try:
             validated_candle = [
+                symbol_asset_type,
                 name,
                 dt.strftime("%d-%m-%Y"),
                 dt.strftime("%H:%M:%S"),

@@ -228,7 +228,7 @@ class DailyDataExtractor:
 
             if segment_rows_count == 0:
                 logger.warning("No data for segment", extra={"segment": segment})
-                continue
+                # continue
 
             # Consolidate staging files into final parquet
             self._consolidate_staging_to_final(staging_dir, final_parquet, segment)
@@ -274,7 +274,7 @@ class DailyDataExtractor:
             # Skip if already staged
             if safe_key in staged_symbols:
                 skipped_count += 1
-                pbar.set_postfix({"staged_skip": skipped_count})
+                pbar.set_postfix({"fetched": fetched_count, "errors": error_count, "skipped": skipped_count})
                 continue
 
             try:
@@ -297,10 +297,11 @@ class DailyDataExtractor:
 
             if not candles:
                 skipped_count += 1
+                pbar.set_postfix({"fetched": fetched_count, "errors": error_count, "skipped": skipped_count})
                 logger.debug(f'No candles returned {trading_symbol}')
                 
                 # Write empty marker file to track completion
-                self._write_symbol_staging(safe_key + "_empty", staging_dir, [])
+                self._write_symbol_staging(safe_key, staging_dir, [])
                 continue
 
             # Convert candles to rows
@@ -338,10 +339,7 @@ class DailyDataExtractor:
             # Empty marker file for symbols with no data
             symbol_df = pl.DataFrame(schema=CANDLE_SCHEMA)
         
-        # Atomic write: write to temp, then rename
-        temp_file = staging_file.with_suffix(".parquet.tmp")
-        symbol_df.write_parquet(temp_file)
-        temp_file.rename(staging_file)
+        symbol_df.write_parquet(staging_file)
 
     def _consolidate_staging_to_final(self, staging_dir: Path, final_parquet: Path, segment: str) -> None:
         """Consolidate all staging files into final segment parquet."""

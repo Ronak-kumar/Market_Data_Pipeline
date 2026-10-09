@@ -6,43 +6,56 @@ application:
   debug: true
 
 extractor_settings:
-  client: "UPSTOX"
+  client: "groww"
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: "2026-10-06"
-  end_date: "2026-10-06"
+  start_date: "2026-10-07"
+  end_date: "2026-10-07"
 
 cloud_settings:
-  client: "aws"
   push_to_cloud: true
+  client: "aws"
   storage_name: "marketdata-pipeline"
   destination_folder: "market_data_storage"
 
 broker_configuration:
   processable_segments:
-    - "NSE_INDEX"
-    - "BSE_INDEX"
-    - "GLOBAL_INDEX"
-    - "GLOBAL_INDICATOR"
+    ### Upstox ###
+    # - "NSE_INDEX"
+    # - "BSE_INDEX"
+    # - "GLOBAL_INDEX"
+    # - "GLOBAL_INDICATOR"
+    # - "NSE_FO"
+    # - "BSE_FO"
+    # - "MCX_FO"
+    # - "BCD_FO"
+    # - "NCD_FO"
+    # - "BSE_EQ"
+    # - "NSE_EQ"
+    # - "NSE_COM"
 
-    - "NSE_FO"
-    - "BSE_FO"
-    - "MCX_FO"
-    - "BCD_FO"
-    - "NCD_FO"
-
-    - "BSE_EQ"
+    # Groww #
     - "NSE_EQ"
+    - "BSE_FO"
+    - "BSE_INDEX"
+    - "NSE_FO"
+    - "BSE_EQ"
+    - "MCX_FO"
+    - "NSE_INDEX"
 
-    - "NSE_COM"
-
-    # - "BSE_CASH"
-    # - "NSE_CASH"
-    # - "BSE_FNO"
-    # - "NSE_COMMODITY"
+    # Dhan #
+    # - "NSE_EQ"
+    # - "BSE_EQ"
     # - "NSE_FNO"
-    # - "MCX_COMMODITY"
+    # - "BSE_FNO"
+    # - "NSE_INDEX"
+    # - "BSE_INDEX"
+    # - "MCX_FNO"
+    # - "NSE_CURRENCY"
+    # - "BSE_CURRENCY"
+    # - "NSE_COM"
+    # - "BSE_COM"
 
   session_bounds:
     NSE_INDEX:
@@ -74,3 +87,4 @@ broker_configuration:
     "BSEBANKEX": "BANKEX"
     "BSE SENSEX": "SENSEX"
     "BSESENSEX": "SENSEX"
+
