@@ -7,10 +7,10 @@ from shared.observability import get_logger
 
 logger = get_logger(__name__)
 
-@transformer_registry.register('upstox')
-class UpstoxTransformationAdapter(DataTransformer):
+@transformer_registry.register('zerodha')
+class ZerodhaTransformationAdapter(DataTransformer):
     def __init__(self):
-        logger.debug("UpstoxTransformationAdapter initialized")
+        logger.debug("ZerodhaTransformationAdapter initialized")
 
     def fno_transformation(self, df: DataFrame) -> DataFrame:
         logger.info("Starting FNO transformation", extra={"input_rows": df.height})

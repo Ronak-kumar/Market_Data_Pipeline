@@ -8,7 +8,7 @@ from transformation.clients.adapters.upstox import UpstoxTransformationAdapter
 
 logger = get_logger(__name__)
 
-def transform_data(filemap: dict[str, Path], transformer: DataTransformer, segment_type_map: dict) -> None:
+def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> None:
     logger.info("Starting transformation pipeline", extra={"dates_count": len(filemap)})
 
     result_filemap = {}
@@ -22,12 +22,12 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer, segme
             segment_parts = segment.split("_")
 
             segment = "_".join(segment_parts[:2])
-            segment_asset_class = segment_parts[-1]
 
             normalized_df = transformer.base_transformation(filepath=filepath, segment=segment)
             logger.debug("Base transformation completed", extra={"segment": segment, "rows": normalized_df.height})
 
             range = app_settings.broker_configuration.session_bounds.get(segment, {})
+
             if len(range) == 0:
                 range["start"], range["end"] = normalized_df["Time"].min()[:5], normalized_df["Time"].max()[:5]
 
@@ -35,26 +35,34 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer, segme
                                                                             interval=app_settings.extractor_settings.interval)
             logger.debug("Range Filling Completed", extra={"segment": segment, "rows": range_filled_segment_frame.height})
 
-            segment_type = segment_asset_class.lower()
+            segments_asset_class_map = transformer.asset_segregation(range_filled_segment_frame)
 
-            if "cash" == segment_type:
-                segment_frame = transformer.equity_transformation(range_filled_segment_frame)
-                logger.debug("Equity transformation completed", extra={"segment": segment, "rows": segment_frame.height})
-            elif "fo" == segment_type:
-                segment_frame = transformer.fno_transformation(range_filled_segment_frame)
-                logger.debug("FNO transformation completed", extra={"segment": segment, "rows": segment_frame.height})
-            else:
-                logger.warning("Unknown segment type, skipping", extra={"segment": segment})
-                continue
+            for segment_type, segment_frame in segments_asset_class_map.items():
 
-            parts = list(filepath.parts)
-            parts[parts.index("Bronze")] = "Silver"
-            saving_path = Path(*parts[:-1])
-            saving_path.mkdir(parents=True, exist_ok=True)
-            output_path = saving_path / f"{segment}.parquet"
-            segment_frame.write_parquet(output_path)
-            logger.info("Segment written to Silver layer", extra={"segment": segment, "output_path": str(output_path), "rows": segment_frame.height})
-            date_map[segment] = output_path
+                if segment_frame.height == 0:
+                    continue
+
+                segment_frame = segment_frame.drop(["Asset_Class"])
+
+                if "equity" == segment_type:
+                    segment_frame = transformer.equity_transformation(segment_frame)
+                    logger.debug("Equity transformation completed", extra={"segment": segment, "rows": segment_frame.height})
+                elif "fno" == segment_type:
+                    segment_frame = transformer.fno_transformation(segment_frame)
+                    logger.debug("FNO transformation completed", extra={"segment": segment, "rows": segment_frame.height})
+                else:
+                    logger.warning("Unknown segment type, skipping", extra={"segment": segment})
+                    continue
+
+                parts = list(filepath.parts)
+                parts[parts.index("Bronze")] = "Silver"
+                saving_path = Path(*parts[:-1])
+                saving_path.mkdir(parents=True, exist_ok=True)
+                file_name = f"{segment}_{segment_type.upper()}"
+                output_path = saving_path / f"{file_name}.parquet"
+                segment_frame.write_parquet(output_path)
+                logger.info("Segment written to Silver layer", extra={"segment": segment, "output_path": str(output_path), "rows": segment_frame.height})
+                date_map[file_name] = output_path
 
         result_filemap[date] = date_map
 

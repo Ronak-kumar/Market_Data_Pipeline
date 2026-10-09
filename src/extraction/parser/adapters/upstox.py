@@ -34,7 +34,7 @@ class UpstoxInstrumentParser(InstrumentParser):
         Extracts components using strict regex patterns and reassembles them 
         to create the symbol_name (excluding the exchange).
         """
-        EQUITY_PATTERN = r"^(?P<underlying>[A-Z0-9&_\-\s]+)$"
+        EQUITY_PATTERN = r"^(?P<underlying>[A-Za-z0-9& _-]+)$"
         FUTURE_PATTERN = r"^(?P<underlying>[A-Z0-9&_-]+) FUT (?P<expiry>\d{2} [A-Za-z]{3} \d{2})$"
         OPTION_PATTERN = r"^(?P<underlying>[A-Z0-9&_-]+) (?P<strike>\d+(?:\.\d+)?) (?P<option_type>CE|PE) (?P<expiry>\d{2} [A-Za-z]{3} \d{2})$"
 

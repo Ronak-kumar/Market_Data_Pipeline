@@ -6,12 +6,12 @@ application:
   debug: true
 
 extractor_settings:
-  client: "UPSTOX"
+  client: "zerodha"
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: "2026-09-21"
-  end_date: "2026-09-21"
+  start_date: "2026-10-06"
+  end_date: "2026-10-06"
 
 cloud_settings:
   client: "aws"
@@ -21,28 +21,17 @@ cloud_settings:
 
 broker_configuration:
   processable_segments:
+    - "NSE_EQ"
+    - "BSE_EQ"
+    - "NSE_FNO"
+    - "BSE_FNO"
     - "NSE_INDEX"
     - "BSE_INDEX"
-    - "GLOBAL_INDEX"
-    - "GLOBAL_INDICATOR"
-
-    - "NSE_FO"
-    - "BSE_FO"
-    - "MCX_FO"
-    - "BCD_FO"
-    - "NCD_FO"
-
-    - "BSE_EQ"
-    - "NSE_EQ"
-
+    - "MCX_FNO"
+    - "NSE_CURRENCY"
+    - "BSE_CURRENCY"
     - "NSE_COM"
-
-    # - "BSE_CASH"
-    # - "NSE_CASH"
-    # - "BSE_FNO"
-    # - "NSE_COMMODITY"
-    # - "NSE_FNO"
-    # - "MCX_COMMODITY"
+    - "BSE_COM"
 
   session_bounds:
     NSE_INDEX:
@@ -74,3 +63,4 @@ broker_configuration:
     "BSEBANKEX": "BANKEX"
     "BSE SENSEX": "SENSEX"
     "BSESENSEX": "SENSEX"
+

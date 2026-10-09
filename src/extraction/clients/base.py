@@ -57,7 +57,7 @@ class MarketDataProvider(ABC):
                         }
                     )
                     self._reset_client_session()
-                    tm.sleep(1)
+                    tm.sleep(1)  # Exponential backoff
                     continue
 
                 if response.status_code == 200:
