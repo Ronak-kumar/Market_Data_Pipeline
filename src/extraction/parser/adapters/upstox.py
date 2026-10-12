@@ -38,6 +38,10 @@ class UpstoxInstrumentParser(InstrumentParser):
         FUTURE_PATTERN = r"^(?P<underlying>[A-Z0-9&_-]+) FUT (?P<expiry>\d{2} [A-Za-z]{3} \d{2})$"
         OPTION_PATTERN = r"^(?P<underlying>[A-Z0-9&_-]+) (?P<strike>\d+(?:\.\d+)?) (?P<option_type>CE|PE) (?P<expiry>\d{2} [A-Za-z]{3} \d{2})$"
 
+        df = df.with_columns(
+            pl.col("trading_symbol").str.replace(r"-", "").alias("trading_symbol")
+        )
+
         temp_df = df.with_columns(
             # -------------------------
             # 1. Symbol name

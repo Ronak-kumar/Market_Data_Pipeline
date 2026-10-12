@@ -38,6 +38,14 @@ class UpstoxTransformationAdapter(DataTransformer):
                 pl.col("Ticker").str.replace_all("-", "")
             ]
         )
+        df = df.with_columns(
+            pl.col("Expiry").str.strptime(pl.Date, format="%d%b%y", strict=True)
+            .alias("Expiry")
+        )
+
+        df = df.with_columns(
+            pl.col("Strike").cast(pl.Float32).alias("Strike")
+        )
 
         expected_columns = [
                     "Timestamp", "Ticker", "Open", "High", "Low", "Close",
