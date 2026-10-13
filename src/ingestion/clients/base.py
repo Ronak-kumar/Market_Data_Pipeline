@@ -81,3 +81,13 @@ class DataIngestor(ABC):
         """Compare parqet schema and databse table schema."""
         pass
 
+    @abstractmethod
+    def delete_date_data(self, table_name: str, date: str) -> bool:
+        """Error in data ingestion....deleting the ingested data."""
+        pass
+    
+    @abstractmethod
+    def check_date_exists(self, table_name: str, date: str) -> bool:
+        """Check date existence for restricting duplicate ingestion"""
+        pass
+

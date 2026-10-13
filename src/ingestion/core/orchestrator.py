@@ -75,47 +75,110 @@ class IngestionOrchestrator:
         
         if not silver_date_path.exists():
             logger.warning(f"Silver date path does not exist: {silver_date_path}")
+            self.ingestor.disconnect()
             return {seg: IngestionResult(success=False, error="Path not found") for seg in segments}
         
+        # Check if date already exists in database
+        existing_segments = []
         for segment, target_table in segments.items():
-            logger.info(f"Starting ingestion for {segment} on {date}")
-            
-            # Find parquet file for segment
-            parquet_file = silver_date_path / f"{segment}.parquet"
-            
-            if not parquet_file.exists():
-                logger.warning(f"Parquet file not found: {parquet_file}")
-                results[segment] = IngestionResult(success=False, error="Parquet file not found")
-                continue
-            
-            # Get table schema
-            parquet_schema = self.ingestor.get_table_schema(parquet_file)
-
-            target_table = segment.lower() if target_table == "" else target_table 
-
-            # Create table if needed    
-            if self.settings.create_tables:
-                self.ingestor.create_table(segment.lower(), self.settings.clickhouse.database, target_table)
-
-            # match the schema of provided table and parquet schema
-            db_table_schema = self.ingestor.get_db_table_schema("tetst")
-            compatible_evaluation = self.ingestor.compare_schemas(parquet_schema, db_table_schema)
-            
-            # Ingest file
-            result = self.ingestor.ingest_file(segment.lower(), parquet_file, format="parquet")
-            results[segment] = result
-            
-            logger.info(f"Ingestion complete for {segment}", extra={
-                "success": result.success,
-                "records": result.records_ingested,
-                "failed": result.records_failed,
-                "duration": result.duration_seconds
-            })
+            target_table = segment.lower() if target_table == "" else target_table
+            if self.ingestor.table_exists(target_table):
+                if self.ingestor.check_date_exists(target_table, date):
+                    existing_segments.append(segment)
+                    logger.info(f"Date {date} already exists for segment {segment}, skipping")
         
-        # Disconnect
-        self.ingestor.disconnect()
+        if len(existing_segments) == len(segments):
+            logger.info(f"All segments for date {date} already exist in database, skipping ingestion")
+            self.ingestor.disconnect()
+            return {seg: IngestionResult(success=True, records_ingested=0, error="Already exists") for seg in segments}
+        
+        # Track successfully ingested segments for potential rollback
+        successful_tables = []
+        results = {}
+        
+        try:
+            for segment, target_table in segments.items():
+                # Skip already existing segments
+                if segment in existing_segments:
+                    results[segment] = IngestionResult(success=True, records_ingested=0, error="Already exists")
+                    continue
+                    
+                logger.info(f"Starting ingestion for {segment} on {date}")
+                
+                # Find parquet file for segment
+                parquet_file = silver_date_path / f"{segment}.parquet"
+                
+                if not parquet_file.exists():
+                    logger.warning(f"Parquet file not found: {parquet_file}")
+                    results[segment] = IngestionResult(success=False, error="Parquet file not found")
+                    # Rollback all successful segments
+                    self._rollback_date(date, successful_tables)
+                    self.ingestor.disconnect()
+                    return {seg: IngestionResult(success=False, error="Parquet file not found") for seg in segments}
+                
+                # Get table schema
+                parquet_schema = self.ingestor.get_table_schema(parquet_file)
+
+                target_table = segment.lower() if target_table == "" else target_table
+
+                # Create table if needed
+                if self.settings.create_tables:
+                    self.ingestor.create_table(segment.lower(), self.settings.clickhouse.database, target_table)
+
+                # match the schema of provided table and parquet schema
+                db_table_schema = self.ingestor.get_db_table_schema(target_table)
+                compatible_evaluation = self.ingestor.compare_schemas(parquet_schema, db_table_schema)
+
+                # Ingest file
+                result = self.ingestor.ingest_file(target_table, parquet_file, format="parquet")
+                results[segment] = result
+                
+                if not result.success:
+                    logger.error(f"Ingestion failed for {segment}: {result.error}")
+                    # Rollback all successful segments for this date
+                    self._rollback_date(date, successful_tables)
+                    raise Exception(f"Ingestion failed for {segment}: {result.error}")
+                
+                successful_tables.append(target_table)
+                logger.info(f"Ingestion complete for {segment}", extra={
+                    "success": result.success,
+                    "records": result.records_ingested,
+                    "failed": result.records_failed,
+                    "duration": result.duration_seconds
+                })
+            
+            logger.info(f"All segments ingested successfully for date {date}")
+            
+        except Exception as e:
+            logger.error(f"Ingestion failed, rolled back: {e}")
+            # Rollback any successful segments
+            if successful_tables:
+                self._rollback_date(date, successful_tables)
+            # Mark all as failed
+            for seg in segments:
+                if seg not in results or not results[seg].success:
+                    results[seg] = IngestionResult(success=False, error=f"Rolled back due to failure: {str(e)}")
+        finally:
+            # Disconnect
+            self.ingestor.disconnect()
         
         return results
+
+    def _rollback_date(self, date: str, ingested_tables: List[str]) -> bool:
+        """Rollback ingestion for a specific date by deleting the data."""
+        success = True
+        for table in ingested_tables:
+            table_name = table
+            try:
+                if self.ingestor.delete_date_data(table_name, date):
+                    logger.info(f"Rolled back table {table_name} for date {date}")
+                else:
+                    logger.warning(f"No data to rollback for table {table_name} on date {date}")
+            except Exception as e:
+                logger.error(f"Rollback failed for table {table_name} on date {date}: {e}")
+                success = False
+        return success
+
 
     def run_full_backfill(self, silver_base_path: Path, start_date: str, end_date: str, segments: List[str]) -> Dict[str, Dict[str, IngestionResult]]:
         """
@@ -175,3 +238,7 @@ def run_ingestion(
     finally:
         if target:
             app_settings.ingestion_settings.target = original_target
+
+
+if __name__ == "__main__":
+    run_ingestion("src/extraction/cache/upstox/Silver", "2026-10-09", {"BSE_INDEX_EQUITY": "spot", "BSE_FO_FNO": "options", "MCX_FO_FNO": "", "NSE_COM_FNO": "", "NSE_EQ_EQUITY": "", "NSE_FO_FNO": "options", "NSE_INDEX_EQUITY": "spot"})

@@ -144,6 +144,37 @@ class ClickHouseIngestor(DataIngestor):
             logger.warning("Error checking table existence", extra={"table": table_name, "error": str(e)})
             return False
 
+    
+    def check_date_exists(self, table_name: str, date: str) -> bool:
+        """Check if data for a specific date exists in the table."""
+        if self._client is None:
+            self.connect()
+        
+        try:
+            query = f"SELECT count() FROM {self.config.database}.{table_name} WHERE toDate(Timestamp) = '{date}' LIMIT 1"
+            result = self._client.execute(query)
+            count = result[0][0] if result else 0
+            return count > 0
+        except Exception as e:
+            logger.warning(f"Error checking date existence for {table_name} on {date}: {e}")
+            return False
+
+    def delete_date_data(self, table_name: str, date: str) -> bool:
+        """Delete data for a specific date from the table (for rollback)."""
+        if self._client is None:
+            self.connect()
+        
+        try:
+            query = f"ALTER TABLE {self.config.database}.{table_name} DELETE WHERE toDate(Timestamp) = '{date}'"
+            logger.info(f"Rolling back data for {table_name} on {date}")
+            self._client.execute(query)
+            logger.info(f"Successfully rolled back {table_name} for {date}")
+            return True
+        except Exception as e:
+            logger.error(f"Rollback failed for {table_name} on {date}: {e}", exc_info=True)
+            return False
+
+
     def ingest_batch(self, table_name: str, records: List[Dict[str, Any]]) -> IngestionResult:
         """Ingest a batch of records into ClickHouse."""
         if self._client is None:
