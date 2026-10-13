@@ -70,18 +70,19 @@ def transform_data(filemap: dict[str, Path], transformer: DataTransformer) -> No
 
 if __name__ == "__main__":
     transformeer = UpstoxTransformationAdapter()
-    filemap = {datetime.date(2026, 9, 24): 
-            {'BSE_EQ_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/BSE_EQ_CASH.parquet'),
-            'BSE_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/BSE_FO.parquet'),
-            'BSE_INDEX_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/BSE_INDEX_CASH.parquet'),
-            'GLOBAL_INDEX_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/GLOBAL_INDEX_CASH.parquet'),
-            'GLOBAL_INDICATOR_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/GLOBAL_INDICATOR_CASH.parquet'),
-            'MCX_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/MCX_FO.parquet'),
-            'NCD_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/NCD_FO.parquet'),
-            'NSE_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/NSE_FO.parquet'),
-            'NSE_INDEX_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/NSE_INDEX_CASH.parquet'),
-            'NSE_EQ_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/NSE_EQ_CASH.parquet'),
-            'NSE_COM_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-09-24/NSE_COM_CASH.parquet')
+    filemap = {datetime.date(2026, 10, 9): 
+            {
+                # 'BSE_EQ_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/BSE_EQ_CASH.parquet'),
+            'BSE_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/BSE_FO.parquet'),
+            'BSE_INDEX': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/BSE_INDEX.parquet'),
+            # 'GLOBAL_INDEX_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/GLOBAL_INDEX_CASH.parquet'),
+            # 'GLOBAL_INDICATOR_CASH': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/GLOBAL_INDICATOR_CASH.parquet'),
+            'MCX_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/MCX_FO.parquet'),
+            # 'NCD_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/NCD_FO.parquet'),
+            'NSE_FO': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/NSE_FO.parquet'),
+            'NSE_INDEX': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/NSE_INDEX.parquet'),
+            'NSE_EQ': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/NSE_EQ.parquet'),
+            'NSE_COM': Path('D:/Development/Coding_Projects/Main_projects/Market_Data_Pipeline/src/extraction/cache/upstox/Bronze/2026-10-09/NSE_COM.parquet')
             }
             }
-    transform_data(filemap, transformeer, {})
+    transform_data(filemap, transformeer)

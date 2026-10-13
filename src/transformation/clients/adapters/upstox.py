@@ -38,6 +38,14 @@ class UpstoxTransformationAdapter(DataTransformer):
                 pl.col("Ticker").str.replace_all("-", "")
             ]
         )
+        df = df.with_columns(
+            pl.col("Expiry").str.strptime(pl.Date, format="%d%b%y", strict=True)
+            .alias("Expiry")
+        )
+
+        df = df.with_columns(
+            pl.col("Strike").cast(pl.Float32).alias("Strike")
+        )
 
         expected_columns = [
                     "Timestamp", "Ticker", "Open", "High", "Low", "Close",
@@ -52,13 +60,12 @@ class UpstoxTransformationAdapter(DataTransformer):
 
     def equity_transformation(self, df: DataFrame) -> DataFrame:
         logger.info("Starting equity transformation", extra={"input_rows": df.height})
-        df = df.drop(["Open_Interest", "Volume"])
         spot_mapping = app_settings.broker_configuration.symbol_name_mapping
         ##############################
         df = df.rename({"Ticker": "Symbol"})
         # Apply mapping to DataFrame
         df = df.with_columns([pl.col("Symbol").replace(spot_mapping)])
-        expected_columns = ["Timestamp", "Symbol", "Open", "High", "Low", "Close", "Exchange"]
+        expected_columns = ["Timestamp", "Symbol", "Open", "High", "Low", "Close", "Exchange", "Volume", "Open_Interest"]
         result = df.select(expected_columns)
         logger.info("Equity transformation completed", extra={"output_rows": result.height, "columns": result.columns})
         return result
