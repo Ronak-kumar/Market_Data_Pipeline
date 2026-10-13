@@ -7,7 +7,6 @@ from shared.config import app_settings
 from shared.observability import get_logger
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-import time
 
 logger = get_logger(__name__)
 
@@ -44,14 +43,14 @@ class IngestionOrchestrator:
             logger.error(f"Failed to initialize ingestor: {e}", exc_info=True)
             raise
 
-    def run_ingestion(self, silver_base_path: Path, date: str, segments: List[str]) -> Dict[str, IngestionResult]:
+    def run_ingestion(self, silver_base_path: Path, date: str, segments: Dict[str, str]) -> Dict[str, IngestionResult]:
         """
         Run ingestion for a specific date and segments.
         
         Args:
             silver_base_path: Base path to silver layer (e.g., src/transformation/cache/{client}/Silver)
             date: Date string (YYYY-MM-DD)
-            segments: List of segments to ingest
+            segments: Dictionary mapping segment names to target table names
             
         Returns:
             Dict mapping segment to IngestionResult
@@ -78,7 +77,7 @@ class IngestionOrchestrator:
             logger.warning(f"Silver date path does not exist: {silver_date_path}")
             return {seg: IngestionResult(success=False, error="Path not found") for seg in segments}
         
-        for segment in segments:
+        for segment, target_table in segments.items():
             logger.info(f"Starting ingestion for {segment} on {date}")
             
             # Find parquet file for segment
@@ -90,11 +89,17 @@ class IngestionOrchestrator:
                 continue
             
             # Get table schema
-            schema = self.ingestor.get_table_schema(parquet_file)
-            
-            # Create table if needed
+            parquet_schema = self.ingestor.get_table_schema(parquet_file)
+
+            target_table = segment.lower() if target_table == "" else target_table 
+
+            # Create table if needed    
             if self.settings.create_tables:
-                self.ingestor.create_table(segment.lower(), self.settings.clickhouse.database, segment.lower())
+                self.ingestor.create_table(segment.lower(), self.settings.clickhouse.database, target_table)
+
+            # match the schema of provided table and parquet schema
+            db_table_schema = self.ingestor.get_db_table_schema("tetst")
+            compatible_evaluation = self.ingestor.compare_schemas(parquet_schema, db_table_schema)
             
             # Ingest file
             result = self.ingestor.ingest_file(segment.lower(), parquet_file, format="parquet")
@@ -169,162 +174,4 @@ def run_ingestion(
         return orchestrator.run_ingestion(Path(silver_base_path), date, segments)
     finally:
         if target:
-            app_settings.ingestion_settings.target = original_target
-
-
-if __name__ == "__main__":
-    # CLI entry point for standalone ingestion
-    import sys
-    import argparse
-    
-    parser = argparse.ArgumentParser(
-        description="Ingest Parquet files into ClickHouse/PostgreSQL/TimescaleDB",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Ingest single parquet file with auto table name
-  python -m ingestion.core.orchestrator /data/parquet/NSE_FNO.parquet
-  
-  # Ingest with explicit table name
-  python -m ingestion.core.orchestrator /data/parquet/NSE_FNO.parquet --table market_data_nse_fno
-  
-  # Ingest multiple files
-  python -m ingestion.core.orchestrator /data/parquet/NSE_FNO.parquet /data/parquet/NSE_EQ.parquet
-  
-  # Ingest with explicit table names for multiple files
-  python -m ingestion.core.orchestrator /data/parquet/NSE_FNO.parquet --table market_data_nse_fno /data/parquet/NSE_EQ.parquet --table market_data_nse_eq
-  
-  # Override target database
-  python -m ingestion.core.orchestrator /data/parquet/NSE_FNO.parquet --target postgresql
-        """
-    )
-    
-    parser.add_argument(
-        "parquet_files",
-        nargs="+",
-        help="Path(s) to parquet file(s) to ingest"
-    )
-    
-    parser.add_argument(
-        "--table", "-t",
-        action="append",
-        help="Table name for corresponding parquet file. If not provided, derived from filename. Use multiple --table for multiple files."
-    )
-    
-    parser.add_argument(
-        "--target",
-        choices=["clickhouse", "postgresql", "timescaledb"],
-        help="Override target database (default from settings.yaml)"
-    )
-    
-    parser.add_argument(
-        "--is-fno",
-        action="append",
-        type=lambda x: x.lower() == "true",
-        help="Force F&O mode for corresponding parquet file (true/false). Auto-detected if not provided."
-    )
-    
-    parser.add_argument(
-        "--create-table",
-        action="store_true",
-        default=True,
-        help="Create table if not exists (default: True)"
-    )
-    
-    parser.add_argument(
-        "--no-create-table",
-        action="store_false",
-        dest="create_table",
-        help="Disable auto table creation"
-    )
-    
-    args = parser.parse_args()
-    
-    # Validate table count matches file count if provided
-    if args.table and len(args.table) != len(args.parquet_files):
-        print(f"Error: Number of --table arguments ({len(args.table)}) must match number of parquet files ({len(args.parquet_files)})")
-        sys.exit(1)
-    
-    if args.is_fno and len(args.is_fno) != len(args.parquet_files):
-        print(f"Error: Number of --is-fno arguments ({len(args.is_fno)}) must match number of parquet files ({len(args.parquet_files)})")
-        sys.exit(1)
-    
-    # Enable ingestion
-    app_settings.ingestion_settings.enabled = True
-    
-    # Override target if provided
-    original_target = app_settings.ingestion_settings.target
-    if args.target:
-        app_settings.ingestion_settings.target = args.target
-    
-    app_settings.ingestion_settings.create_tables = args.create_table
-    
-    try:
-        orchestrator = IngestionOrchestrator()
-        
-        results = {}
-        
-        for i, parquet_file in enumerate(args.parquet_files):
-            file_path = Path(parquet_file)
-            
-            if not file_path.exists():
-                print(f"Error: Parquet file not found: {file_path}")
-                results[str(file_path)] = IngestionResult(success=False, error="File not found")
-                continue
-            
-            # Determine table name
-            if args.table:
-                table_name = args.table[i]
-            else:
-                # Derive from filename
-                table_name = file_path.stem
-                if not table_name.startswith("market_data_"):
-                    table_name = f"market_data_{table_name}"
-            
-            # Determine is_fno
-            is_fno = None
-            if args.is_fno:
-                is_fno = args.is_fno[i]
-            
-            print(f"Processing: {file_path} -> {table_name}" + (f" (F&O: {is_fno})" if is_fno is not None else " (auto-detect)"))
-            
-            # Use validate_and_ingest_file if available
-            if hasattr(orchestrator.ingestor, 'validate_and_ingest_file'):
-                result = orchestrator.ingestor.validate_and_ingest_file(
-                    file_path=file_path,
-                    table_name=table_name,
-                    is_fno=is_fno,
-                    format="parquet"
-                )
-            else:
-                # Fallback
-                schema = orchestrator.ingestor.get_table_schema(table_name.replace("market_data_", "").upper())
-                if app_settings.ingestion_settings.create_tables:
-                    orchestrator.ingestor.create_table(schema)
-                result = orchestrator.ingestor.ingest_file(table_name, file_path, format="parquet")
-            
-            results[str(file_path)] = result
-        
-        # Print results
-        print("\n=== Ingestion Results ===")
-        all_success = True
-        for file_path, result in results.items():
-            status = "SUCCESS" if result.success else "FAILED"
-            print(f"  {file_path} -> {status}")
-            print(f"    Records: {result.records_ingested}, Failed: {result.records_failed}, Duration: {result.duration_seconds:.2f}s")
-            if result.error:
-                print(f"    Error: {result.error}")
-            if not result.success:
-                all_success = False
-        
-        if not all_success:
-            sys.exit(1)
-            
-    except Exception as e:
-        print(f"Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-    finally:
-        if args.target:
             app_settings.ingestion_settings.target = original_target

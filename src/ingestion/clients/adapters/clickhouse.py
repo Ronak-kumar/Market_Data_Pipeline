@@ -258,5 +258,99 @@ class ClickHouseIngestor(DataIngestor):
     def get_table_schema(self, file_path: Path) -> dict:
         """Get parquet schema for segment."""            
         schema = pl.scan_parquet(file_path).collect_schema()
-        return dict(schema)
+        return {column: str(dtype) for column, dtype in schema.items()}
 
+    def get_db_table_schema(self, table_name: str) -> dict:
+        """Get database table schema for segment."""            
+        table_schema = self._client.execute(f"DESCRIBE TABLE {table_name}")
+        table_schema_dict = {}
+        for column in table_schema:
+            table_schema_dict[column[0]] = column[1]
+
+        return table_schema_dict
+
+    def compare_schemas(self,
+        parquet_schema: dict[str, str],
+        db_schema: dict[str, str],
+    ) -> dict:
+        """Compare Parquet and ClickHouse schemas."""
+
+        parquet_columns = set(parquet_schema)
+        db_columns = set(db_schema)
+
+
+        missing_in_parquet = db_columns - parquet_columns
+        extra_in_parquet = parquet_columns - db_columns
+
+        # Compare data types for columns present in both schemas.
+        type_mismatches = {
+            column: {
+                "parquet": parquet_schema[column],
+                "clickhouse": db_schema[column],
+            }
+            for column in parquet_columns & db_columns
+            if not self.types_compatible(
+                parquet_schema[column],
+                db_schema[column],
+            )
+        }
+
+        return {
+            "is_compatible": (
+                not missing_in_parquet
+                and not extra_in_parquet
+                and not type_mismatches
+            ),
+            "missing_in_parquet": sorted(missing_in_parquet),
+            "extra_in_parquet": sorted(extra_in_parquet),
+            "type_mismatches": type_mismatches,
+        }
+
+
+    def types_compatible(self,
+        parquet_type: str,
+        clickhouse_type: str,
+    ) -> bool:
+        """Basic type comparison; extend for your schema conventions."""
+
+        parquet_type = parquet_type.lower().replace(" ", "")
+        clickhouse_type = clickhouse_type.lower().replace(" ", "")
+
+        # Normalize common equivalent types.
+        aliases = {
+            "lowcardinality(string)": "string",
+            "datetime(time_unit='us',time_zone=none)": "datetime",
+            "datetime('asia/kolkata')": "datetime",
+            "string": "string",
+            "large_string": "string",
+            "utf8": "string",
+            "int64": "int64",
+            "uint64": "uint64",
+            "int32": "int32",
+            "uint32": "uint32",
+            "float": "float32",
+            "float32": "float32",
+            "double": "float64",
+            "float64": "float64",
+            "date": "date",
+        }
+
+        parquet_normalized = aliases.get(parquet_type, parquet_type)
+        clickhouse_normalized = aliases.get(clickhouse_type, clickhouse_type)
+
+        # Explicit mappings for common Parquet -> ClickHouse types.
+        compatible_types = {
+            ("string", "string"),
+            ("int32", "int32"),
+            ("uint32", "uint32"),
+            ("int64", "int64"),
+            ("uint64", "uint64"),
+            ("float32", "float32"),
+            ("float64", "float64"),
+            ("date", "date"),
+        }
+
+        return (
+            parquet_normalized == clickhouse_normalized
+            or (parquet_normalized, clickhouse_normalized) in compatible_types
+        )

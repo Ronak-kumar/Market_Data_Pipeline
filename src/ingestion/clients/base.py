@@ -70,3 +70,14 @@ class DataIngestor(ABC):
     def get_table_schema(self, file_path: Path) -> dict:
         """Get table schema for a segment. Override in subclasses."""
         pass
+
+    @abstractmethod
+    def get_db_table_schema(self, file_path: Path) -> dict:
+        """Get db table schema for a segment. Override in subclasses."""
+        pass
+
+    @abstractmethod
+    def compare_schemas(self, parquet_schema: dict[str, str], db_schema: dict[str, str]) -> dict:
+        """Compare parqet schema and databse table schema."""
+        pass
+
