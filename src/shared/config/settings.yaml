@@ -16,9 +16,50 @@ extractor_settings:
 ingestion_settings:
   enabled: true
   target: "clickhouse"
-  batch_size: 50000
-  max_workers: 4
+  batch_size: 10000
   create_tables: true
+
+  clickhouse:
+    host: ""
+    port: 8123
+    database: ""
+    username: ""
+    password: ""
+    secure: false
+    compression: true
+    connect_timeout: 10
+
+  postgresql:
+    host: ""
+    port: 5432
+    database: ""
+    username: ""
+    password: ""
+    pool_min: 1
+    pool_max: 10
+    connect_timeout: 10
+    ssl_mode: "prefer"
+    ssl_cert: ""
+    ssl_key: ""
+    ssl_ca: ""
+    application_name: "market_data_pipeline"
+
+  timescaledb:
+    host: ""
+    port: 5432
+    database: ""
+    username: ""
+    password: ""
+    pool_min: 1
+    pool_max: 10
+    connect_timeout: 10
+    ssl_mode: "prefer"
+    ssl_cert: ""
+    ssl_key: ""
+    ssl_ca: ""
+    application_name: "market_data_pipeline"
+    chunk_time_interval: "1 day"
+
 
 cloud_settings:
   client: "aws"
