@@ -103,11 +103,11 @@ class DailyDataExtractor:
             destination_folder=destination_folder
         )
 
-    def _push_to_cloud(self, processed_data: dict) -> None:
+    def _push_to_cloud(self, processed_data: list) -> None:
         if not self.cloud_object.push_to_cloud_flag:
             return
 
-        for _, filepath in processed_data.items():
+        for filepath in processed_data:
             try:
                 storage_object = self.cloud_object.storage_object
                 destination_folder = self.cloud_object.destination_folder
@@ -119,7 +119,8 @@ class DailyDataExtractor:
                 logger.info("Cloud upload success", extra={"filepath": str(filepath)})
             except Exception as e:
                 logger.warning("Cloud upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
-
+                raise
+            
     def _initialize_master_instrument(self, provider, parser, client):
         try:
             master_instrument = parser.parse(provider.master_instrument_data)
@@ -129,30 +130,6 @@ class DailyDataExtractor:
             raise
 
         return master_instrument
-
-    def process(self) -> Dict:
-        logger.info("Starting extraction process")
-        master_instrument = self.client_object.master_instrument
-        start_date = self.extraction_config.start_date
-        end_date = self.extraction_config.end_date
-        variation = self.extraction_config.extraction_variation
-
-        if start_date == "" or end_date == "":
-            logger.info("No date range specified, processing current day (intraday)")
-            process_able_date = datetime.now()
-            dates = [process_able_date]
-        else:
-            start, end = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
-            dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-            logger.info("Historical date range", extra={"start_date": start_date, "end_date": end_date, "days": len(dates)})
-
-        date_map = {}
-        for date in dates:
-            processed_data = self._day_process(date=date, master_instrument=master_instrument, variation=variation)
-            date_map[date] = processed_data
-
-        logger.info("Extraction process completed", extra={"dates_processed": len(date_map)})
-        return date_map
 
     def _day_process(self, date, master_instrument, variation) -> dict:
         """Per day processing with staged parquet resilience."""
@@ -171,14 +148,14 @@ class DailyDataExtractor:
         logger.info("Processing date...", extra={"date": date_str, "variation": variation})
         processed_data = self._processing_day(master_instrument, provider=self.client_object.provider, date=date_str, variation=variation)
         
-        # Push processed data to datalake
-        self._push_to_cloud(processed_data)
+        # # Push processed data to datalake
+        # self._push_to_cloud(processed_data)
         
-        # Create silver data
-        silver_processed_data = transform_data({date: processed_data}, self.client_object.transformer)
-        for date, silver_data in silver_processed_data.items():
-            logger.info("Silver data created", extra={"date": date})
-            self._push_to_cloud(silver_data)
+        # # Create silver data
+        # silver_processed_data = transform_data({date: processed_data}, self.client_object.transformer)
+        # for date, silver_data in silver_processed_data.items():
+        #     logger.info("Silver data created", extra={"date": date})
+        #     self._push_to_cloud(silver_data)
 
         return processed_data
 
@@ -196,7 +173,7 @@ class DailyDataExtractor:
         timeframe = str(self.extraction_config.extraction_interval)
         logger.debug("Processing configuration", extra={"interval": timeframe, "segments": segment_list})
 
-        base_cache_path = Path(__file__).parent.parent / "cache" / self.client_object.client_name / "Bronze" / date
+        base_cache_path = Path(__file__).parent.parent.parent / "cache" / self.client_object.client_name / "Bronze" / date
         base_cache_path.mkdir(parents=True, exist_ok=True)
 
         for segment in segment_list:

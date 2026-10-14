@@ -184,10 +184,84 @@ consolidate_staging_to_final(staging_dir, final_parquet)
 # 5. On failure → delete_date_data() for ALL successful segments → full date rollback
 ```
 
-### ☁️ Cloud Integration
+### ☁️ Cloud Integration (S3)
+
 - **S3 upload** via `boto3` with multipart support
 - **Partitioned prefixes** — `bronze/upstox/2026-10-06/NSE_FO.parquet`
 - **IAM least-privilege** — write-only to `bronze/`, `silver/` prefixes
+- **Auto-credential resolution** — boto3 uses default credential chain (env vars → ~/.aws/credentials → IAM role)
+
+#### AWS Credentials Setup
+
+**Option 1: AWS CLI (Recommended)**
+```bash
+# Install AWS CLI
+pip install awscli
+# or
+brew install awscli  # macOS
+
+# Configure interactively
+aws configure
+
+# You'll be prompted for:
+# AWS Access Key ID [None]: YOUR_ACCESS_KEY_HERE
+# AWS Secret Access Key [None]: YOUR_SECRET_KEY_HERE
+# Default region name [None]: ap-south-1
+# Default output format [None]: json
+```
+
+**Option 2: Environment Variables**
+```bash
+export AWS_ACCESS_KEY_ID=***
+export AWS_SECRET_ACCESS_KEY=***
+export AWS_DEFAULT_REGION=ap-south-1
+```
+
+**Option 3: IAM Role (Production)**
+Attach IAM role with S3 permissions to EC2/ECS — no keys needed. boto3 auto-detects instance profile.
+
+#### S3 Bucket Setup
+```bash
+# Create bucket
+aws s3 mb s3://marketdata-pipeline --region ap-south-1
+
+# Verify
+aws s3 ls s3://marketdata-pipeline
+```
+
+#### IAM Policy (Least Privilege)
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": [
+      "s3:PutObject",
+      "s3:PutObjectAcl"
+    ],
+    "Resource": "arn:aws:s3:::marketdata-pipeline/market_data_storage/*"
+  }]
+}
+```
+
+#### Settings Configuration
+```yaml
+cloud_settings:
+  client: "aws"
+  push_to_cloud: true
+  storage_name: "marketdata-pipeline"
+  destination_folder: "market_data_storage"
+```
+
+#### Path Structure in S3
+```
+s3://marketdata-pipeline/
+└── market_data_storage/
+    └── upstox/
+        └── 2026-10-06/
+            ├── NSE_FNO.parquet
+            └── NSE_EQ.parquet
+```
 
 ---
 
