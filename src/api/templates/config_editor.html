@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings Editor - Market Data Pipeline</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 24px; }
+        header { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        header h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; }
+        header p { color: #666; margin-top: 4px; font-size: 14px; }
+        
+        .alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        
+        .tabs { display: flex; background: #fff; border-radius: 8px 8px 0 0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .tab-btn { flex: 1; padding: 14px 20px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: #666; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        .tab-btn:hover { color: #333; background: #f5f5f5; }
+        .tab-btn.active { color: #0066cc; border-bottom-color: #0066cc; background: #f0f7ff; }
+        
+        .tab-content { display: none; background: #fff; border-radius: 0 0 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 24px; }
+        .tab-content.active { display: block; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: #333; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 3px rgba(0,102,204,0.1); }
+        .form-group small { display: block; margin-top: 6px; font-size: 12px; color: #888; }
+        .form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+        
+        .checkbox-group { display: flex; align-items: center; gap: 8px; }
+        .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: #0066cc; }
+        
+        /* Segments list */
+        .segments-list { border: 1px solid #ddd; border-radius: 6px; max-height: 350px; overflow-y: auto; }
+        .segment-item { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; gap: 10px; }
+        .segment-item:last-child { border-bottom: none; }
+        .segment-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: #0066cc; }
+        .segment-name { flex: 1; font-size: 13px; color: #333; user-select: none; }
+        .segment-name.disabled { color: #aaa; text-decoration: line-through; }
+        
+        /* Session bounds / symbol mappings */
+        .kv-list { border: 1px solid #ddd; border-radius: 6px; max-height: 250px; overflow-y: auto; min-height: 80px; }
+        .kv-item { display: flex; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eee; gap: 10px; flex-wrap: wrap; }
+        .kv-item:last-child { border-bottom: none; }
+        .kv-item input { padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .kv-item .key-input { flex: 1; min-width: 180px; }
+        .kv-item .val-input { flex: 1; min-width: 180px; }
+        .kv-item .time-input { width: 100px; }
+        .kv-item .kv-sep { color: #999; margin: 0 4px; }
+        .kv-item .btn-remove { padding: 6px 10px; background: transparent; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; color: #666; font-size: 14px; }
+        .kv-item .btn-remove:hover { color: #dc3545; border-color: #dc3545; background: #fef0f0; }
+        .add-row-btn { margin-top: 10px; padding: 8px 16px; font-size: 13px; }
+        
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #0066cc; color: #fff; }
+        .btn-primary:hover { background: #0052a3; }
+        .btn-secondary { background: #fff; color: #333; border: 1px solid #ddd; }
+        .btn-secondary:hover { background: #f5f5f5; }
+        .btn-group { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; }
+        
+        .hidden-input { display: none; }
+        
+        .section-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Settings Editor</h1>
+            <p>Edit settings.yaml - changes persist to the config file used by the pipeline</p>
+        </header>
+        
+        {% if message %}
+        <div class="alert alert-success">{{ message }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+        
+        <form method="POST" id="configForm">
+            <div class="tabs">
+                <button type="button" class="tab-btn active" data-tab="application">Application</button>
+                <button type="button" class="tab-btn" data-tab="extractor">Extractor</button>
+                <button type="button" class="tab-btn" data-tab="ingestion">Ingestion</button>
+                <button type="button" class="tab-btn" data-tab="cloud">Cloud</button>
+                <button type="button" class="tab-btn" data-tab="broker">Broker Config</button>
+            </div>
+            
+            <!-- Application Tab -->
+            <div class="tab-content active" id="tab-application">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="app_name" value="{{ settings.application.name if settings.application else 'Market Data Extractor' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Version</label>
+                        <input type="text" name="app_version" value="{{ settings.application.version if settings.application else '1.0.0' }}">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="app_description" rows="2">{{ settings.application.description if settings.application else '' }}</textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Environment</label>
+                        <select name="app_environment">
+                            <option value="development" {% if (settings.application.environment if settings.application else 'development') == 'development' %}selected{% endif %}>development</option>
+                            <option value="staging" {% if (settings.application.environment if settings.application else '') == 'staging' %}selected{% endif %}>staging</option>
+                            <option value="production" {% if (settings.application.environment if settings.application else '') == 'production' %}selected{% endif %}>production</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><div class="checkbox-group"><input type="checkbox" name="app_debug" {% if (settings.application.debug if settings.application else true) %}checked{% endif %}><span>Debug Mode</span></div></label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Extractor Tab -->
+            <div class="tab-content" id="tab-extractor">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Client (Broker)</label>
+                        <select name="ext_client">
+                            <option value="upstox" {% if (settings.extractor_settings.client if settings.extractor_settings else 'upstox') == 'upstox' %}selected{% endif %}>upstox</option>
+                            <option value="groww" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'groww' %}selected{% endif %}>groww</option>
+                            <option value="dhan" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'dhan' %}selected{% endif %}>dhan</option>
+                            <option value="zerodha" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'zerodha' %}selected{% endif %}>zerodha</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Interval (minutes)</label>
+                        <input type="number" name="ext_interval" min="1" max="1440" value="{{ settings.extractor_settings.interval if settings.extractor_settings else 1 }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Max Retries</label>
+                        <input type="number" name="ext_max_retries" min="1" max="10" value="{{ settings.extractor_settings.max_retries if settings.extractor_settings else 3 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Expiry Duration (months)</label>
+                        <input type="number" name="ext_expiry_duration" min="1" max="12" value="{{ settings.extractor_settings.expiry_duration if settings.extractor_settings else 3 }}">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Start Date (YYYY-MM-DD)</label>
+                        <input type="text" name="ext_start_date" placeholder="Leave empty for intraday" value="{{ settings.extractor_settings.start_date if settings.extractor_settings else '' }}">
+                        <small>Empty = current day (intraday)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>End Date (YYYY-MM-DD)</label>
+                        <input type="text" name="ext_end_date" placeholder="Leave empty for intraday" value="{{ settings.extractor_settings.end_date if settings.extractor_settings else '' }}">
+                        <small>Empty = current day (intraday)</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ingestion Tab -->
+            <div class="tab-content" id="tab-ingestion">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><div class="checkbox-group"><input type="checkbox" name="ing_enabled" {% if (settings.ingestion_settings.enabled if settings.ingestion_settings else true) %}checked{% endif %}><span>Enabled</span></div></label>
+                    </div>
+                    <div class="form-group">
+                        <label>Target Database</label>
+                        <select name="ing_target">
+                            <option value="clickhouse" {% if (settings.ingestion_settings.target if settings.ingestion_settings else 'clickhouse') == 'clickhouse' %}selected{% endif %}>clickhouse</option>
+                            <option value="postgresql" {% if (settings.ingestion_settings.target if settings.ingestion_settings else '') == 'postgresql' %}selected{% endif %}>postgresql</option>
+                            <option value="timescaledb" {% if (settings.ingestion_settings.target if settings.ingestion_settings else '') == 'timescaledb' %}selected{% endif %}>timescaledb</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Batch Size</label>
+                        <input type="number" name="ing_batch_size" min="100" max="100000" value="{{ settings.ingestion_settings.batch_size if settings.ingestion_settings else 10000 }}">
+                    </div>
+                    <div class="form-group">
+                        <label><div class="checkbox-group"><input type="checkbox" name="ing_create_tables" {% if (settings.ingestion_settings.create_tables if settings.ingestion_settings else true) %}checked{% endif %}><span>Create Tables</span></div></label>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Cloud Tab -->
+            <div class="tab-content" id="tab-cloud">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cloud Provider</label>
+                        <select name="cloud_client">
+                            <option value="aws" {% if (settings.cloud_settings.client if settings.cloud_settings else 'aws') == 'aws' %}selected{% endif %}>aws</option>
+                            <option value="azure" {% if (settings.cloud_settings.client if settings.cloud_settings else '') == 'azure' %}selected{% endif %}>azure</option>
+                            <option value="gcp" {% if (settings.cloud_settings.client if settings.cloud_settings else '') == 'gcp' %}selected{% endif %}>gcp</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><div class="checkbox-group"><input type="checkbox" name="cloud_push_to_cloud" {% if (settings.cloud_settings.push_to_cloud if settings.cloud_settings else true) %}checked{% endif %}><span>Push to Cloud</span></div></label>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Storage Name (Bucket)</label>
+                        <input type="text" name="cloud_storage_name" value="{{ settings.cloud_settings.storage_name if settings.cloud_settings else 'marketdata-pipeline' }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Destination Folder</label>
+                        <input type="text" name="cloud_destination_folder" value="{{ settings.cloud_settings.destination_folder if settings.cloud_settings else 'market_data_storage' }}">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Broker Config Tab -->
+            <div class="tab-content" id="tab-broker">
+                <div class="section-title">Processable Segments</div>
+                <div class="segments-list" id="segmentsList">
+                    {% for seg in all_segments %}
+                    <div class="segment-item">
+                        <input type="checkbox" name="segments_checkbox" value="{{ seg }}" {% if seg in enabled_segments %}checked{% endif %}>
+                        <span class="segment-name {% if seg not in enabled_segments %}disabled{% endif %}">{{ seg }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <small>Checked = enabled, Unchecked = disabled (saved with # prefix in YAML)</small>
+                
+                <div class="section-title" style="margin-top: 24px;">Session Bounds (Trading Hours)</div>
+                <div class="kv-list" id="sessionBoundsList">
+                    {% for key, value in (settings.broker_configuration.session_bounds if settings.broker_configuration and settings.broker_configuration.session_bounds else {}).items() %}
+                    <div class="kv-item">
+                        <input type="text" class="key-input" name="sb_key" value="{{ key }}" placeholder="Segment (e.g., NSE_INDEX)">
+                        <span class="kv-sep">→</span>
+                        <input type="time" class="time-input" name="sb_start" value="{{ value.start }}" step="60">
+                        <span class="kv-sep">-</span>
+                        <input type="time" class="time-input" name="sb_end" value="{{ value.end }}" step="60">
+                        <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-secondary add-row-btn" onclick="addSessionBound()">+ Add Session Bound</button>
+                
+                <div class="section-title" style="margin-top: 24px;">Symbol Name Mapping</div>
+                <div class="kv-list" id="symbolMappingList">
+                    {% for key, value in (settings.broker_configuration.symbol_name_mapping if settings.broker_configuration and settings.broker_configuration.symbol_name_mapping else {}).items() %}
+                    <div class="kv-item">
+                        <input type="text" class="key-input" name="sm_key" value="{{ key }}" placeholder="Source symbol (e.g., NIFTY 50)">
+                        <span class="kv-sep">→</span>
+                        <input type="text" class="val-input" name="sm_val" value="{{ value }}" placeholder="Display name (e.g., NIFTY50)">
+                        <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-secondary add-row-btn" onclick="addSymbolMapping()">+ Add Symbol Mapping</button>
+                
+                <!-- Hidden inputs for form submission -->
+                <input type="hidden" name="segments_enabled" id="segmentsEnabled">
+                <input type="hidden" name="segments_disabled" id="segmentsDisabled">
+                <input type="hidden" name="session_bounds_json" id="sessionBoundsJson">
+                <input type="hidden" name="symbol_mappings_json" id="symbolMappingsJson">
+            </div>
+            
+            <div class="btn-group">
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+        
+        // Segments checkbox handling
+        function updateSegmentsHidden() {
+            const enabled = [];
+            const disabled = [];
+            document.querySelectorAll('input[name="segments_checkbox"]').forEach(cb => {
+                if (cb.checked) enabled.push(cb.value);
+                else disabled.push(cb.value);
+            });
+            document.getElementById('segmentsEnabled').value = enabled.join(',');
+            document.getElementById('segmentsDisabled').value = disabled.join(',');
+            
+            // Update visual disabled state
+            document.querySelectorAll('.segment-name').forEach((el, i) => {
+                const cb = document.querySelectorAll('input[name="segments_checkbox"]')[i];
+                el.classList.toggle('disabled', !cb.checked);
+            });
+        }
+        
+        document.querySelectorAll('input[name="segments_checkbox"]').forEach(cb => {
+            cb.addEventListener('change', updateSegmentsHidden);
+        });
+        updateSegmentsHidden(); // Initial
+        
+        // Session bounds
+        function addSessionBound(key = '', start = '', end = '') {
+            const container = document.getElementById('sessionBoundsList');
+            const div = document.createElement('div');
+            div.className = 'kv-item';
+            div.innerHTML = `
+                <input type="text" class="key-input" name="sb_key" value="${key}" placeholder="Segment (e.g., NSE_INDEX)">
+                <span class="kv-sep">→</span>
+                <input type="time" class="time-input" name="sb_start" value="${start}" step="60">
+                <span class="kv-sep">-</span>
+                <input type="time" class="time-input" name="sb_end" value="${end}" step="60">
+                <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
+            `;
+            container.appendChild(div);
+        }
+        
+        window.addSessionBound = addSessionBound;
+        
+        // Symbol mappings
+        function addSymbolMapping(key = '', val = '') {
+            const container = document.getElementById('symbolMappingList');
+            const div = document.createElement('div');
+            div.className = 'kv-item';
+            div.innerHTML = `
+                <input type="text" class="key-input" name="sm_key" value="${key}" placeholder="Source symbol (e.g., NIFTY 50)">
+                <span class="kv-sep">→</span>
+                <input type="text" class="val-input" name="sm_val" value="${val}" placeholder="Display name (e.g., NIFTY50)">
+                <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
+            `;
+            container.appendChild(div);
+        }
+        
+        window.addSymbolMapping = addSymbolMapping;
+        
+        // Build hidden JSON fields before submit
+        function updateHiddenFields() {
+            // Session bounds
+            const bounds = {};
+            document.querySelectorAll('#sessionBoundsList .kv-item').forEach(item => {
+                const inputs = item.querySelectorAll('input');
+                const key = inputs[0].value.trim();
+                const start = inputs[1].value;
+                const end = inputs[2].value;
+                if (key) bounds[key] = { start, end };
+            });
+            document.getElementById('sessionBoundsJson').value = JSON.stringify(bounds);
+            
+            // Symbol mappings
+            const mappings = {};
+            document.querySelectorAll('#symbolMappingList .kv-item').forEach(item => {
+                const inputs = item.querySelectorAll('input');
+                const key = inputs[0].value.trim();
+                const val = inputs[1].value.trim();
+                if (key && val) mappings[key] = val;
+            });
+            document.getElementById('symbolMappingsJson').value = JSON.stringify(mappings);
+        }
+        
+        // Update on any change in dynamic lists
+        ['sessionBoundsList', 'symbolMappingList'].forEach(id => {
+            const container = document.getElementById(id);
+            if (container) {
+                container.addEventListener('input', updateHiddenFields);
+                container.addEventListener('change', updateHiddenFields);
+            }
+        });
+        
+        // Also update on form submit
+        document.getElementById('configForm').addEventListener('submit', updateHiddenFields);
+    </script>
+</body>
+</html>

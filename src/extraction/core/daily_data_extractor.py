@@ -30,6 +30,7 @@ class DailyDataExtractor:
         self._initialize_cloud_clients()
         self._config()
         self.segment_type_map = self._settings_config.broker_configuration.processable_segments
+        self._progress_callback = None
 
     def _config(self):
         expiry_suffix_duration = self._settings_config.extractor_settings.expiry_duration
@@ -80,6 +81,18 @@ class DailyDataExtractor:
 
         logger.info("DailyDataExtractor initialized", extra={"client": client})
 
+    def set_progress_callback(self, callback):
+        """Set progress callback for real-time updates."""
+        self._progress_callback = callback
+
+    def _emit_progress(self, event_type: str, **data):
+        """Emit progress event via callback if set."""
+        if self._progress_callback:
+            try:
+                self._progress_callback(event_type, **data)
+            except Exception:
+                pass  # Don't let progress reporting break the pipeline
+
     def _initialize_cloud_clients(self):
         cloud_discovery()
 
@@ -120,7 +133,7 @@ class DailyDataExtractor:
             except Exception as e:
                 logger.warning("Cloud upload failed", extra={"filepath": str(filepath), "error": str(e)}, exc_info=True)
                 raise
-            
+           
     def _initialize_master_instrument(self, provider, parser, client):
         try:
             master_instrument = parser.parse(provider.master_instrument_data)
@@ -147,10 +160,10 @@ class DailyDataExtractor:
 
         logger.info("Processing date...", extra={"date": date_str, "variation": variation})
         processed_data = self._processing_day(master_instrument, provider=self.client_object.provider, date=date_str, variation=variation)
-        
+       
         # # Push processed data to datalake
         # self._push_to_cloud(processed_data)
-        
+       
         # # Create silver data
         # silver_processed_data = transform_data({date: processed_data}, self.client_object.transformer)
         # for date, silver_data in silver_processed_data.items():
@@ -165,7 +178,7 @@ class DailyDataExtractor:
 
         segment_list = self.segment_type_map
         segment_map = {}
-        
+       
         if not segment_list:
             logger.warning("No segment selected for processing", extra={"processable_segments": self.extraction_config.processable_segments})
             return segment_map
@@ -176,18 +189,27 @@ class DailyDataExtractor:
         base_cache_path = Path(__file__).parent.parent.parent / "cache" / self.client_object.client_name / "Bronze" / date
         base_cache_path.mkdir(parents=True, exist_ok=True)
 
-        for segment in segment_list:
+        # Emit start of processing
+        self._emit_progress('phase_progress', message=f'Starting extraction for {len(segment_list)} segments', percentage=0, segment='init')
+
+        for seg_idx, segment in enumerate(segment_list):
             logger.info("Processing segment", extra={"segment": segment})
-            
+           
             # Check if segment is already complete (final parquet exists)
             final_parquet = base_cache_path / f"{segment}.parquet"
             if final_parquet.exists():
                 logger.info(f"Segment: {segment} already complete, skipping")
                 segment_map[segment] = final_parquet
+                # Update progress
+                pct = ((seg_idx + 1) / len(segment_list)) * 100
+                self._emit_progress('phase_progress', segment=segment, status='complete', current=1, total=1, percentage=pct, message=f'Segment {segment} already complete, skipping')
                 continue
 
             segment_df = master_instrument.filter(pl.col("segment") == segment)
             logger.debug("Segment filtered", extra={"segment": segment, "instrument_count": segment_df.height})
+
+            # Emit segment start
+            self._emit_progress('phase_progress', segment=segment, status='processing', current=0, total=segment_df.height, message=f'Processing segment {segment}')
 
             # Process segment with staged writes
             staging_dir = base_cache_path / f"{segment}_staging"
@@ -209,9 +231,13 @@ class DailyDataExtractor:
 
             # Consolidate staging files into final parquet
             self._consolidate_staging_to_final(staging_dir, final_parquet, segment)
-            
+           
             logger.info("Segment written to Bronze layer", extra={"segment": segment, "output_path": str(final_parquet)})
             segment_map[segment] = final_parquet
+
+            # Emit segment complete
+            pct = ((seg_idx + 1) / len(segment_list)) * 100
+            self._emit_progress('phase_progress', segment=segment, status='complete', current=segment_df.height, total=segment_df.height, percentage=pct, message=f'Segment {segment} completed')
 
         return segment_map
 
@@ -276,7 +302,7 @@ class DailyDataExtractor:
                 skipped_count += 1
                 pbar.set_postfix({"fetched": fetched_count, "errors": error_count, "skipped": skipped_count})
                 logger.debug(f'No candles returned {trading_symbol}')
-                
+               
                 # Write empty marker file to track completion
                 self._write_symbol_staging(safe_key, staging_dir, [])
                 continue
@@ -292,6 +318,9 @@ class DailyDataExtractor:
             fetched_count += 1
             staged_symbols.add(safe_key)  # Update local set for progress tracking
             pbar.set_postfix({"fetched": fetched_count, "errors": error_count, "skipped": skipped_count})
+            
+            # Emit progress for each symbol
+            self._emit_progress('phase_progress', segment=segment, status='processing', current=fetched_count + skipped_count, total=segment_df.height, message=f'Fetched {fetched_count + skipped_count}/{segment_df.height} symbols')
 
         return rows_count, fetched_count, skipped_count, error_count
 
@@ -299,7 +328,7 @@ class DailyDataExtractor:
         """Get set of instrument keys that already have staging files."""
         if not staging_dir.exists():
             return set()
-        
+       
         staged = set()
         for f in staging_dir.glob("*.parquet"):
             # Remove .parquet extension to get instrument key
@@ -309,19 +338,19 @@ class DailyDataExtractor:
     def _write_symbol_staging(self, safe_key: str, staging_dir: Path, symbol_rows: list[list]) -> None:
         """Write a single symbol's data to staging parquet file."""
         staging_file = staging_dir / f"{safe_key}.parquet"
-        
+       
         if symbol_rows:
             symbol_df = pl.DataFrame(symbol_rows, orient="row", schema=CANDLE_SCHEMA)
         else:
             # Empty marker file for symbols with no data
             symbol_df = pl.DataFrame(schema=CANDLE_SCHEMA)
-        
+       
         symbol_df.write_parquet(staging_file)
 
     def _consolidate_staging_to_final(self, staging_dir: Path, final_parquet: Path, segment: str) -> None:
         """Consolidate all staging files into final segment parquet."""
         parquet_files = list(staging_dir.glob("*.parquet"))
-        
+       
         if not parquet_files:
             logger.warning("No staging files to consolidate", extra={"segment": segment})
             # Create empty final file
@@ -330,7 +359,7 @@ class DailyDataExtractor:
             return
 
         logger.info(f"Consolidating {len(parquet_files)} staging files for {segment}")
-        
+       
         # Read and concatenate all non-empty staging files
         dfs = []
         for f in parquet_files:
@@ -350,7 +379,7 @@ class DailyDataExtractor:
         temp_final = final_parquet.with_suffix(".parquet.tmp")
         consolidated_df.write_parquet(temp_final)
         temp_final.rename(final_parquet)
-        
+       
         logger.info(f"Consolidated {consolidated_df.height} rows for {segment}")
 
         # Optionally clean up staging directory (comment out to keep for debugging)

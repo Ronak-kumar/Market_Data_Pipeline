@@ -1,86 +1,73 @@
 application:
-  name: "Market Data Extractor"
-  version: "1.0.0"
-  description: "Market Data Extractor is a Python application that extracts market data from various sources and processes it for analysis and storage."
-  environment: "development"
+  name: Market Data Extractor
+  version: 1.0.0
+  description: Market Data Extractor is a Python application that extracts market
+    data from various sources and processes it for analysis and storage.
+  environment: development
   debug: true
-
 extractor_settings:
-  client: "upstox"
+  client: upstox
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: ""
-  end_date: ""
-
+  start_date: '2026-10-16'
+  end_date: '2026-10-16'
 ingestion_settings:
   enabled: true
-  target: "clickhouse"
+  target: clickhouse
   batch_size: 10000
   create_tables: true
-
 cloud_settings:
-  client: "aws"
+  client: aws
   push_to_cloud: true
-  storage_name: "marketdata-pipeline"
-  destination_folder: "market_data_storage"
-
+  storage_name: marketdata-pipeline
+  destination_folder: market_data_storage
 broker_configuration:
   processable_segments:
-
-    - "NSE_INDEX"
-    - "BSE_INDEX"
-    # - "GLOBAL_INDEX"
-    # - "GLOBAL_INDICATOR"
-    - "NSE_FO"
-    - "BSE_FO"
-    - "MCX_FO"
-    # - "BCD_FO"
-    # - "NCD_FO"
-    # - "BSE_EQ"
-    - "NSE_EQ"
-    - "NSE_COM"
-
-    # - "NSE_EQ"
-    # - "BSE_EQ"
-    # - "NSE_FNO"
-    # - "BSE_FNO"
-    # - "NSE_INDEX"
-    # - "BSE_INDEX"
-    # - "MCX_FNO"
-    # - "NSE_CURRENCY"
-    # - "BSE_CURRENCY"
-    # - "NSE_COM"
-    # - "BSE_COM"
-
+  - NSE_INDEX
+  - BSE_INDEX
+  - GLOBAL_INDEX
+  - '# GLOBAL_INDICATOR'
+  - NSE_FO
+  - BSE_FO
+  - MCX_FO
+  - '# BCD_FO'
+  - '# NCD_FO'
+  - '# BSE_EQ'
+  - NSE_EQ
+  - NSE_COM
+  - '# NSE_FNO'
+  - '# BSE_FNO'
+  - '# MCX_FNO'
+  - '# NSE_CURRENCY'
+  - '# BSE_CURRENCY'
+  - '# BSE_COM'
   session_bounds:
     NSE_INDEX:
-      start: "09:15"
-      end: "15:40"
+      start: 09:15
+      end: '15:40'
     NSE_FO:
-      start: "09:15"
-      end: "15:40"
+      start: 09:15
+      end: '15:40'
     BSE_INDEX:
-      start: "09:15"
-      end: "15:40"
+      start: 09:15
+      end: '15:40'
     BSE_FO:
-      start: "09:15"
-      end: "15:40"
+      start: 09:15
+      end: '15:40'
     MCX_FO:
-      start: "09:15"
-      end: "23:30"
-
+      start: 09:15
+      end: '23:30'
   symbol_name_mapping:
-    "NIFTY FIN SERVICE": "FINNIFTY"
-    "NIFTY 50": "NIFTY50"
-    "Nifty50": "NIFTY50"
-    "INDIA VIX": "VIX"
-    "IndiaVix": "VIX"
-    "NIFTY BANK": "BANKNIFTY"
-    "BankNifty": "BANKNIFTY"
-    "Banknifty": "BANKNIFTY"
-    "BSE BANKEX": "BANKEX"
-    "BSEBANKEX": "BANKEX"
-    "BSE SENSEX": "SENSEX"
-    "BSESENSEX": "SENSEX"
-
+    NIFTY FIN SERVICE: FINNIFTY
+    NIFTY 50: NIFTY50
+    Nifty50: NIFTY50
+    INDIA VIX: VIX
+    IndiaVix: VIX
+    NIFTY BANK: BANKNIFTY
+    BankNifty: BANKNIFTY
+    Banknifty: BANKNIFTY
+    BSE BANKEX: BANKEX
+    BSEBANKEX: BANKEX
+    BSE SENSEX: SENSEX
+    BSESENSEX: SENSEX

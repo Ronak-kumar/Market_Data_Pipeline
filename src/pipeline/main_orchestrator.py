@@ -24,42 +24,46 @@ class PipelineOrchestrator:
                 setattr(app_settings, key, value)
                 logger.info(f"Config override: {key} = {value}")
 
-    def run_extraction(self, start_date: str = "", end_date: str = "") -> Dict:
-        """Run extraction phase - produces Bronze layer."""
-        from extraction.core.daily_data_extractor import DailyDataExtractor
+    def run_extraction(self, start_date: str = "", end_date: str = "", progress_callback=None) -> Dict:
+            """Run extraction phase - produces Bronze layer."""
+            from extraction.core.daily_data_extractor import DailyDataExtractor
         
-        logger.info("=" * 60)
-        logger.info("PHASE 1: EXTRACTION (Bronze Layer)")
-        logger.info("=" * 60)
+            logger.info("=" * 60)
+            logger.info("PHASE 1: EXTRACTION (Bronze Layer)")
+            logger.info("=" * 60)
         
-        # Override dates
-        original_start = app_settings.extractor_settings.start_date
-        original_end = app_settings.extractor_settings.end_date
+            # Override dates
+            start_date = app_settings.extractor_settings.start_date
+            end_date = app_settings.extractor_settings.end_date
         
-        try:
-            app_settings.extractor_settings.start_date = start_date
-            app_settings.extractor_settings.end_date = end_date
+            try:
+                app_settings.extractor_settings.start_date = start_date
+                app_settings.extractor_settings.end_date = end_date
             
-            extractor = DailyDataExtractor()
-            master_instrument = extractor.client_object.master_instrument
-            variation = extractor.extraction_config.extraction_variation
+                extractor = DailyDataExtractor()
+                # Pass progress callback to extractor if supported
+                if progress_callback and hasattr(extractor, 'set_progress_callback'):
+                    extractor.set_progress_callback(progress_callback)
+            
+                master_instrument = extractor.client_object.master_instrument
+                variation = extractor.extraction_config.extraction_variation
 
-            if start_date == "" or end_date == "":
-                logger.info("No date range specified, processing current day (intraday)")
-                process_able_date = datetime.now()
-                dates = [process_able_date]
-            else:
-                start, end = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
-                dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-                logger.info("Historical date range", extra={"start_date": start_date, "end_date": end_date, "days": len(dates)})
+                if start_date == "" or end_date == "":
+                    logger.info("No date range specified, processing current day (intraday)")
+                    process_able_date = datetime.now()
+                    dates = [process_able_date]
+                else:
+                    start, end = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
+                    dates = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+                    logger.info("Historical date range", extra={"start_date": start_date, "end_date": end_date, "days": len(dates)})
 
-            for date in dates:
-                processed_data = extractor._day_process(date=date, master_instrument=master_instrument, variation=variation)
+                for date in dates:
+                    processed_data = extractor._day_process(date=date, master_instrument=master_instrument, variation=variation)
 
-        finally:
-            # Restore original dates
-            app_settings.extractor_settings.start_date = original_start
-            app_settings.extractor_settings.end_date = original_end
+            finally:
+                # Restore original dates
+                app_settings.extractor_settings.start_date = original_start
+                app_settings.extractor_settings.end_date = original_end
 
     def run_cloud_push(self, data_layer: str, date: str = "",) -> None:
         """Push data to cloud (S3)."""
@@ -87,7 +91,7 @@ class PipelineOrchestrator:
             extractor._push_to_cloud(files)
             logger.info("Cloud push executed succesfully")
         except Exception as e:
-            logger.info(f"Cloud push failed between excuption: {e}")
+            logger.info(f"Cloud push failed between exception: {e}")
 
     def run_transformation(self, data_layer: str, date: str = "") -> Dict:
         """Run transformation phase - Bronze → Silver."""
@@ -185,7 +189,6 @@ def main():
     pipeline.run_extraction()
     pipeline.run_cloud_push(data_layer="Bronze")
     pipeline.run_transformation(data_layer="Bronze")
-    pipeline.run_cloud_push(data_layer="Silver")
     pipeline.run_cloud_push(data_layer="Silver")
     pipeline.run_ingestion(data_layer="Silver")
 

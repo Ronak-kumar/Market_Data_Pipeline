@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Runner - Market Data Pipeline</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 24px; }
+        header { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        header h1 { font-size: 22px; font-weight: 600; color: #1a1a1a; }
+        header p { color: #666; margin-top: 4px; font-size: 14px; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        
+        .alert { padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: #0066cc; color: #fff; }
+        .btn-primary:hover:not(:disabled) { background: #0052a3; }
+        .btn-secondary { background: #fff; color: #333; border: 1px solid #ddd; }
+        .btn-secondary:hover { background: #f5f5f5; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn-danger:hover:not(:disabled) { background: #c82333; }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-group { display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn-sm { padding: 8px 16px; font-size: 13px; }
+
+        /* Status Cards */
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .status-card { background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .status-card h3 { font-size: 14px; font-weight: 600; color: #1a1a1a; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+        .status-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+        .status-row .label { color: #666; }
+        .status-row .value { font-weight: 500; color: #333; }
+        .status-row .value.success { color: #155724; }
+        .status-row .value.warning { color: #856404; }
+        .status-row .value.error { color: #721c24; }
+
+        /* Execution Panel */
+        .exec-panel { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .exec-header { padding: 20px; border-bottom: 1px solid #eee; }
+        .exec-header h2 { font-size: 16px; font-weight: 600; color: #1a1a1a; }
+        .exec-body { padding: 20px; }
+        
+        .phase-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .phase-btn { padding: 16px 20px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; transition: all 0.2s; text-align: left; }
+        .phase-btn:hover:not(:disabled) { border-color: #0066cc; background: #f0f7ff; }
+        .phase-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .phase-btn.running { border-color: #0066cc; background: #f0f7ff; }
+        .phase-btn.success { border-color: #28a745; background: #d4edda; }
+        .phase-btn.failed { border-color: #dc3545; background: #f8d7da; }
+        .phase-btn-name { font-weight: 600; font-size: 14px; color: #1a1a1a; }
+        .phase-btn-desc { font-size: 12px; color: #666; margin-top: 4px; }
+        .phase-btn-spinner { display: none; width: 16px; height: 16px; border: 2px solid #0066cc; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-left: auto; }
+        .phase-btn.running .phase-btn-spinner { display: block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .full-pipeline-btn { width: 100%; padding: 16px; font-size: 15px; font-weight: 600; margin-bottom: 24px; }
+
+                /* Progress Panel */
+                .progress-panel { 
+                    background: #fff; 
+                    border-radius: 8px; 
+                    padding: 20px; 
+                    margin-top: 24px; 
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                    border: 1px solid #e0e0e0;
+                }
+                .progress-header { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center; 
+                    margin-bottom: 16px; 
+                }
+                .progress-header h3 { 
+                    font-size: 16px; 
+                    font-weight: 600; 
+                    color: #1a1a1a; 
+                }
+        
+                .progress-overall { margin-bottom: 16px; }
+                .progress-bar-container { 
+                    height: 12px; 
+                    background: #e0e0e0; 
+                    border-radius: 6px; 
+                    overflow: hidden; 
+                    margin-bottom: 8px;
+                }
+                .progress-bar { 
+                    height: 100%; 
+                    background: linear-gradient(90deg, #0066cc, #00a0e4); 
+                    border-radius: 6px; 
+                    transition: width 0.3s ease; 
+                    width: 0%;
+                }
+                .progress-bar.success { background: linear-gradient(90deg, #28a745, #34ce57); }
+                .progress-bar.error { background: linear-gradient(90deg, #dc3545, #e4606d); }
+                .progress-bar.warning { background: linear-gradient(90deg, #ffc107, #ffd54f); }
+                .progress-stats { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    font-size: 13px; 
+                    color: #666; 
+                }
+                .progress-stats .current-phase { color: #0066cc; font-weight: 500; }
+        
+                .segment-progress { 
+                    display: grid; 
+                    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+                    gap: 8px; 
+                    max-height: 200px; 
+                    overflow-y: auto; 
+                    padding: 8px; 
+                    background: #fafafa; 
+                    border-radius: 6px;
+                    border: 1px solid #eee;
+                }
+                .segment-item { 
+                    display: flex; 
+                    flex-direction: column; 
+                    gap: 4px; 
+                    padding: 8px; 
+                    background: #fff; 
+                    border-radius: 4px; 
+                    border: 1px solid #eee;
+                    font-size: 12px;
+                }
+                .segment-item.complete { border-color: #28a745; background: #f0fff4; }
+                .segment-item.processing { border-color: #0066cc; background: #f0f7ff; }
+                .segment-item.error { border-color: #dc3545; background: #fff0f0; }
+                .segment-item.pending { border-color: #ddd; background: #fafafa; color: #999; }
+                .segment-name { font-weight: 500; color: #1a1a1a; }
+                .segment-item.pending .segment-name { color: #999; }
+                .segment-bar { height: 4px; background: #e0e0e0; border-radius: 2px; overflow: hidden; }
+                .segment-bar-fill { height: 100%; border-radius: 2px; transition: width 0.2s ease; }
+                .segment-bar-fill.processing { background: linear-gradient(90deg, #0066cc, #00a0e4); }
+                .segment-bar-fill.complete { background: linear-gradient(90deg, #28a745, #34ce57); }
+                .segment-bar-fill.error { background: linear-gradient(90deg, #dc3545, #e4606d); }
+                .segment-stats { display: flex; justify-content: space-between; color: #666; font-size: 11px; }
+
+                /* Logs Panel */
+                .logs-panel { background: #1e1e1e; border-radius: 8px; overflow: hidden; }
+        .logs-header { padding: 12px 16px; background: #2d2d2d; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
+        .logs-header h3 { font-size: 14px; font-weight: 600; color: #fff; }
+        .logs-controls { display: flex; gap: 8px; }
+        .logs-content { height: 400px; overflow-y: auto; padding: 16px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 12px; line-height: 1.5; color: #d4d4d4; }
+        .log-line { margin: 2px 0; white-space: pre-wrap; word-break: break-word; }
+        .log-line.info { color: #9cdcfe; }
+        .log-line.success { color: #4ec9b0; }
+        .log-line.error { color: #f14c4c; }
+        .log-line.warning { color: #dcdcaa; }
+        .log-line.debug { color: #888; }
+        .log-line.timestamp { color: #6a9955; }
+        .log-line.phase { color: #c586c0; font-weight: 600; }
+
+        .empty-logs { color: #666; text-align: center; padding: 40px; font-style: italic; }
+
+        /* Tab nav at top */
+        .nav-tabs { display: flex; gap: 8px; margin-bottom: 24px; background: #fff; border-radius: 8px; padding: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .nav-tab { padding: 10px 20px; border: none; background: transparent; cursor: pointer; font-size: 13px; font-weight: 500; color: #666; border-radius: 6px; transition: all 0.2s; }
+        .nav-tab:hover { color: #333; background: #f5f5f5; }
+        .nav-tab.active { color: #0066cc; background: #f0f7ff; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Pipeline Runner</h1>
+                <p>Execute pipeline phases using settings.yaml configuration</p>
+            </div>
+            <div class="header-actions">
+                <a href="/config-editor/" class="btn btn-secondary">← Config Editor</a>
+                <button class="btn btn-primary" onclick="refreshCacheInfo()">Refresh Status</button>
+            </div>
+        </header>
+
+        <div class="nav-tabs">
+            <button class="nav-tab active" data-tab="execute">Execute</button>
+            <button class="nav-tab" data-tab="logs">Logs</button>
+        </div>
+
+        {% if message %}
+        <div class="alert alert-success">{{ message }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+
+        <!-- Status Grid -->
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>Configuration</h3>
+                <div class="status-row"><span class="label">Client</span><span class="value">{{ client }}</span></div>
+                <div class="status-row"><span class="label">Ingestion</span><span class="value {% if settings.ingestion_settings.enabled %}success{% else %}warning{% endif %}">{{ 'Enabled' if settings.ingestion_settings.enabled else 'Disabled' }}</span></div>
+                <div class="status-row"><span class="label">Target DB</span><span class="value">{{ settings.ingestion_settings.target }}</span></div>
+                <div class="status-row"><span class="label">Cloud Push</span><span class="value {% if settings.cloud_settings.push_to_cloud %}success{% else %}warning{% endif %}">{{ 'Enabled' if settings.cloud_settings.push_to_cloud else 'Disabled' }}</span></div>
+                <div class="status-row"><span class="label">Cloud Provider</span><span class="value">{{ settings.cloud_settings.client }}</span></div>
+            </div>
+
+            <div class="status-card">
+                <h3>Bronze Layer (Raw)</h3>
+                <div class="status-row"><span class="label">Size</span><span class="value">{{ cache_info.Bronze.size_mb }} MB</span></div>
+                <div class="status-row"><span class="label">Files</span><span class="value">{{ cache_info.Bronze.file_count }}</span></div>
+                <div class="status-row"><span class="label">Last Modified</span><span class="value">{{ cache_info.Bronze.last_modified or 'Never' }}</span></div>
+            </div>
+
+            <div class="status-card">
+                <h3>Silver Layer (Transformed)</h3>
+                <div class="status-row"><span class="label">Size</span><span class="value">{{ cache_info.Silver.size_mb }} MB</span></div>
+                <div class="status-row"><span class="label">Files</span><span class="value">{{ cache_info.Silver.file_count }}</span></div>
+                <div class="status-row"><span class="label">Last Modified</span><span class="value">{{ cache_info.Silver.last_modified or 'Never' }}</span></div>
+            </div>
+        </div>
+
+        <!-- Execute Tab -->
+                <div class="tab-panel active" id="panel-execute">
+                    <div class="exec-panel">
+                        <div class="exec-header">
+                            <h2>Individual Phase Execution</h2>
+                        </div>
+                        <div class="exec-body">
+                            <div class="phase-buttons">
+                                <button class="phase-btn" data-phase="extraction" onclick="runPhaseStream('extraction')">
+                                    <span>
+                                        <div class="phase-btn-name">Extraction</div>
+                                        <div class="phase-btn-desc">Fetch raw data from broker → Bronze layer</div>
+                                    </span>
+                                    <div class="phase-btn-spinner"></div>
+                                </button>
+                                <button class="phase-btn" data-phase="transformation" onclick="runPhaseStream('transformation')">
+                                    <span>
+                                        <div class="phase-btn-name">Transformation</div>
+                                        <div class="phase-btn-desc">Bronze → Silver (normalization)</div>
+                                    </span>
+                                    <div class="phase-btn-spinner"></div>
+                                </button>
+                                <button class="phase-btn" data-phase="bronze_cloud_push" onclick="runPhaseStream('bronze_cloud_push')">
+                                    <span>
+                                        <div class="phase-btn-name">Bronze Cloud Push</div>
+                                        <div class="phase-btn-desc">Upload Bronze layer to cloud storage</div>
+                                    </span>
+                                    <div class="phase-btn-spinner"></div>
+                                </button>
+                                <button class="phase-btn" data-phase="silver_cloud_push" onclick="runPhaseStream('silver_cloud_push')">
+                                    <span>
+                                        <div class="phase-btn-name">Silver Cloud Push</div>
+                                        <div class="phase-btn-desc">Upload Silver layer to cloud storage</div>
+                                    </span>
+                                    <div class="phase-btn-spinner"></div>
+                                </button>
+                                <button class="phase-btn" data-phase="ingestion" onclick="runPhaseStream('ingestion')">
+                                    <span>
+                                        <div class="phase-btn-name">DB Ingestion</div>
+                                        <div class="phase-btn-desc">Silver layer → Database (ClickHouse/PostgreSQL)</div>
+                                    </span>
+                                    <div class="phase-btn-spinner"></div>
+                                </button>
+                            </div>
+
+                            <button class="btn btn-primary full-pipeline-btn" onclick="runFullPipelineStream()">
+                                Run Full Pipeline
+                                <div class="phase-btn-spinner" style="margin-left: 8px;"></div>
+                            </button>
+
+                            <!-- Progress Panel for Streaming -->
+                            <div class="progress-panel hidden" id="progressPanel">
+                                <div class="progress-header">
+                                    <h3 id="currentPhaseTitle">Running Phase...</h3>
+                                    <button class="btn btn-secondary btn-sm" onclick="cancelStream()">Cancel</button>
+                                </div>
+                                <div class="progress-overall">
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar" id="overallProgressBar" style="width: 0%"></div>
+                                    </div>
+                                    <div class="progress-stats">
+                                        <span id="overallProgressText">0%</span>
+                                        <span id="phaseProgressText"></span>
+                                    </div>
+                                </div>
+                                <div class="segment-progress" id="segmentProgress">
+                                    <!-- Segment-level progress will be shown here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+        <!-- Logs Tab -->
+        <div class="tab-panel hidden" id="panel-logs">
+            <div class="logs-panel">
+                <div class="logs-header">
+                    <h3>Execution Logs</h3>
+                    <div class="logs-controls">
+                        <button class="btn btn-secondary btn-sm" onclick="clearLogs()">Clear</button>
+                        <button class="btn btn-secondary btn-sm" onclick="downloadLogs()">Download</button>
+                    </div>
+                </div>
+                <div class="logs-content" id="logsContent">
+                    <div class="empty-logs">No logs yet. Run a pipeline phase to see output.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+            // Tab switching
+            document.querySelectorAll('.nav-tab').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+                    btn.classList.add('active');
+                    document.getElementById('panel-' + btn.dataset.tab).classList.remove('hidden');
+                });
+            });
+
+            let currentPhase = null;
+            let logBuffer = [];
+            const logContent = document.getElementById('logsContent');
+            let eventSource = null;
+            let phaseSegments = {}; // Track segment progress for extraction
+
+            // Phase order for full pipeline progress calculation
+            const PHASE_ORDER = ['extraction', 'bronze_cloud_push', 'transformation', 'silver_cloud_push', 'ingestion'];
+            const PHASE_LABELS = {
+                'extraction': 'Extraction',
+                'bronze_cloud_push': 'Bronze Cloud Push',
+                'transformation': 'Transformation',
+                'silver_cloud_push': 'Silver Cloud Push',
+                'ingestion': 'DB Ingestion'
+            };
+
+            function addLog(message, type = 'info') {
+                const emptyMsg = logContent.querySelector('.empty-logs');
+                if (emptyMsg) emptyMsg.remove();
+
+                const line = document.createElement('div');
+                line.className = 'log-line ' + type;
+                const timestamp = new Date().toLocaleTimeString();
+                line.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${escapeHtml(message)}`;
+                logContent.appendChild(line);
+                logContent.scrollTop = logContent.scrollHeight;
+                logBuffer.push({ timestamp, message, type });
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function clearLogs() {
+                logBuffer = [];
+                logContent.innerHTML = '<div class="empty-logs">Logs cleared.</div>';
+            }
+
+            function downloadLogs() {
+                const content = logBuffer.map(l => `[${l.timestamp}] ${l.message}`).join('\n');
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `pipeline-logs-${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+
+            function setPhaseRunning(phase, running) {
+                const btn = document.querySelector(`.phase-btn[data-phase="${phase}"]`);
+                if (!btn) return;
+                if (running) {
+                    btn.classList.add('running');
+                    btn.classList.remove('success', 'failed');
+                    btn.disabled = true;
+                    currentPhase = phase;
+                } else {
+                    btn.classList.remove('running');
+                    btn.disabled = false;
+                    currentPhase = null;
+                }
+            }
+
+            function setPhaseResult(phase, success) {
+                const btn = document.querySelector(`.phase-btn[data-phase="${phase}"]`);
+                if (!btn) return;
+                btn.classList.remove('running');
+                btn.classList.add(success ? 'success' : 'failed');
+                btn.disabled = false;
+            }
+
+            function showProgressPanel(phaseName) {
+                const panel = document.getElementById('progressPanel');
+                const title = document.getElementById('currentPhaseTitle');
+                title.textContent = PHASE_LABELS[phaseName] || phaseName;
+                panel.classList.remove('hidden');
+                // Reset progress
+                document.getElementById('overallProgressBar').style.width = '0%';
+                document.getElementById('overallProgressBar').className = 'progress-bar';
+                document.getElementById('overallProgressText').textContent = '0%';
+                document.getElementById('phaseProgressText').textContent = '';
+                document.getElementById('segmentProgress').innerHTML = '';
+                // Disable all phase buttons
+                document.querySelectorAll('.phase-btn').forEach(b => b.disabled = true);
+                document.querySelector('.full-pipeline-btn').disabled = true;
+            }
+
+            function hideProgressPanel() {
+                document.getElementById('progressPanel').classList.add('hidden');
+                // Re-enable buttons
+                document.querySelectorAll('.phase-btn').forEach(b => b.disabled = false);
+                document.querySelector('.full-pipeline-btn').disabled = false;
+            }
+
+            function updateOverallProgress(phase, percentage) {
+                const bar = document.getElementById('overallProgressBar');
+                const text = document.getElementById('overallProgressText');
+                const phaseText = document.getElementById('phaseProgressText');
+            
+                bar.style.width = percentage + '%';
+                text.textContent = percentage + '%';
+                phaseText.textContent = `${PHASE_LABELS[phase] || phase}: ${percentage.toFixed(1)}%`;
+                phaseText.className = 'current-phase';
+            }
+
+            function updateSegmentProgress(phase, segments) {
+                const container = document.getElementById('segmentProgress');
+                if (!segments || Object.keys(segments).length === 0) {
+                    container.innerHTML = '';
+                    return;
+                }
+
+                // Only show segment progress for extraction phase
+                if (phase !== 'extraction') {
+                    container.innerHTML = '';
+                    return;
+                }
+
+                let html = '';
+                for (const [segmentName, data] of Object.entries(segments)) {
+                    const status = data.status || 'pending';
+                    const current = data.current || 0;
+                    const total = data.total || 0;
+                    const pct = total > 0 ? (current / total * 100) : 0;
+                
+                    let statusClass = '';
+                    let barClass = '';
+                    if (status === 'complete') { statusClass = 'complete'; barClass = 'complete'; }
+                    else if (status === 'processing') { statusClass = 'processing'; barClass = 'processing'; }
+                    else if (status === 'error') { statusClass = 'error'; barClass = 'error'; }
+                    else { statusClass = 'pending'; barClass = ''; }
+
+                    html += `
+                        <div class="segment-item ${statusClass}">
+                            <div class="segment-name">${escapeHtml(segmentName)}</div>
+                            <div class="segment-bar">
+                                <div class="segment-bar-fill ${barClass}" style="width: ${pct}%"></div>
+                            </div>
+                            <div class="segment-stats">
+                                <span>${current}/${total}</span>
+                                <span>${pct.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    `;
+                }
+                container.innerHTML = html;
+            }
+
+            function connectSSE(url, onMessage, onError, onComplete) {
+                if (eventSource) {
+                    eventSource.close();
+                }
+            
+                eventSource = new EventSource(url);
+            
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        onMessage(data);
+                    } catch (e) {
+                        console.error('Failed to parse SSE message:', e);
+                    }
+                };
+            
+                eventSource.onerror = (err) => {
+                    if (eventSource.readyState === EventSource.CLOSED) {
+                        onComplete();
+                    } else {
+                        onError(err);
+                    }
+                };
+            
+                return eventSource;
+            }
+
+            function cancelStream() {
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+                hideProgressPanel();
+                addLog('Stream cancelled by user', 'warning');
+            }
+
+            async function runPhaseStream(phase) {
+                addLog(`Starting ${phase}...`, 'phase');
+                setPhaseRunning(phase, true);
+                showProgressPanel(phase);
+                phaseSegments = {};
+
+                const endpoints = {
+                    'extraction': '/pipeline/run/extraction/stream',
+                    'transformation': '/pipeline/run/transformation/stream',
+                    'bronze_cloud_push': '/pipeline/run/cloud-push/stream?data_layer=Bronze',
+                    'silver_cloud_push': '/pipeline/run/cloud-push/stream?data_layer=Silver',
+                    'ingestion': '/pipeline/run/ingestion/stream?data_layer=Silver'
+                };
+
+                const url = endpoints[phase];
+                if (!url) {
+                    addLog(`Unknown phase: ${phase}`, 'error');
+                    setPhaseResult(phase, false);
+                    hideProgressPanel();
+                    return;
+                }
+
+                connectSSE(url,
+                    (data) => handleSSEMessage(phase, data),
+                    (err) => {
+                        addLog(`SSE connection error: ${err}`, 'error');
+                        setPhaseResult(phase, false);
+                        hideProgressPanel();
+                    },
+                    () => {
+                        // Connection closed
+                        setPhaseRunning(phase, false);
+                        setPhaseResult(phase, true); // Will be overridden if error occurred
+                        hideProgressPanel();
+                        refreshCacheInfo();
+                    }
+                );
+            }
+
+            function handleSSEMessage(phase, data) {
+                const eventType = data.type;
+            
+                switch (eventType) {
+                    case 'phase_start':
+                        addLog(data.message, 'phase');
+                        updateOverallProgress(phase, 0);
+                        break;
+                    
+                    case 'phase_progress':
+                        // For segment-level progress in extraction
+                        if (data.segment) {
+                            phaseSegments[data.segment] = {
+                                status: data.status || 'processing',
+                                current: data.current || 0,
+                                total: data.total || 0
+                            };
+                            updateSegmentProgress(phase, phaseSegments);
+                        }
+                        if (data.percentage !== undefined) {
+                            updateOverallProgress(phase, data.percentage);
+                        }
+                        if (data.message) {
+                            addLog(data.message, data.level || 'info');
+                        }
+                        break;
+                    
+                    case 'phase_complete':
+                        addLog(data.message, 'success');
+                        updateOverallProgress(phase, 100);
+                        document.getElementById('overallProgressBar').classList.add('success');
+                        // Mark all segments as complete
+                        for (const seg of Object.keys(phaseSegments)) {
+                            phaseSegments[seg].status = 'complete';
+                            phaseSegments[seg].current = phaseSegments[seg].total;
+                        }
+                        updateSegmentProgress(phase, phaseSegments);
+                        setPhaseResult(phase, true);
+                        break;
+                    
+                    case 'phase_error':
+                        addLog(data.message, 'error');
+                        updateOverallProgress(phase, 0);
+                        document.getElementById('overallProgressBar').classList.add('error');
+                        // Mark current segment as error
+                        if (data.segment && phaseSegments[data.segment]) {
+                            phaseSegments[data.segment].status = 'error';
+                            updateSegmentProgress(phase, phaseSegments);
+                        }
+                        setPhaseResult(phase, false);
+                        break;
+                    
+                    case 'log':
+                        addLog(data.message, data.level || 'info');
+                        break;
+                }
+            }
+
+            async function runFullPipelineStream() {
+                const btn = document.querySelector('.full-pipeline-btn');
+                const spinner = btn.querySelector('.phase-btn-spinner');
+            
+                addLog('Starting full pipeline...', 'phase');
+                btn.disabled = true;
+                spinner.style.display = 'block';
+            
+                // Disable individual phase buttons
+                document.querySelectorAll('.phase-btn').forEach(b => b.disabled = true);
+                showProgressPanel('full_pipeline');
+                document.getElementById('currentPhaseTitle').textContent = 'Full Pipeline Execution';
+            
+                let completedPhases = 0;
+                const totalPhases = PHASE_ORDER.filter(p => {
+                    // Check if phase should run based on settings
+                    if (p.includes('cloud_push')) {
+                        const settings = {{ settings.cloud_settings.push_to_cloud|tojson }};
+                        return settings;
+                    }
+                    if (p === 'ingestion') {
+                        const settings = {{ settings.ingestion_settings.enabled|tojson }};
+                        return settings;
+                    }
+                    return true;
+                }).length;
+
+                const updateFullProgress = (phase, pct) => {
+                    // Calculate overall progress based on completed phases + current phase progress
+                    const phaseIndex = PHASE_ORDER.indexOf(phase);
+                    const baseProgress = (phaseIndex / totalPhases) * 100;
+                    const phaseProgress = (pct / 100) * (100 / totalPhases);
+                    const overall = Math.min(baseProgress + phaseProgress, 100);
+                    updateOverallProgress(phase, overall);
+                };
+
+                connectSSE('/pipeline/run/full/stream',
+                    (data) => {
+                        const eventType = data.type;
+                    
+                        if (eventType === 'phase_start') {
+                            addLog(data.message, 'phase');
+                        } else if (eventType === 'phase_complete') {
+                            addLog(data.message, 'success');
+                            completedPhases++;
+                            const phase = data.phase;
+                            // Find which phase in order this corresponds to
+                            const phaseIdx = PHASE_ORDER.indexOf(phase);
+                            if (phaseIdx >= 0) {
+                                updateFullProgress(phase, 100);
+                                setPhaseResult(phase, true);
+                            }
+                        } else if (eventType === 'phase_error') {
+                            addLog(data.message, 'error');
+                            const phase = data.phase;
+                            setPhaseResult(phase, false);
+                            document.getElementById('overallProgressBar').classList.add('error');
+                        } else if (eventType === 'phase_progress') {
+                            // Progress within a phase
+                            if (data.percentage !== undefined) {
+                                updateFullProgress(data.phase, data.percentage);
+                            }
+                            if (data.message) {
+                                addLog(data.message, data.level || 'info');
+                            }
+                        } else if (eventType === 'log') {
+                            addLog(data.message, data.level || 'info');
+                        }
+                    },
+                    (err) => {
+                        addLog(`SSE connection error: ${err}`, 'error');
+                    },
+                    () => {
+                        // Completed
+                        addLog('Full pipeline completed', 'success');
+                        document.getElementById('overallProgressBar').classList.add('success');
+                        updateOverallProgress('full_pipeline', 100);
+                        btn.disabled = false;
+                        spinner.style.display = 'none';
+                        document.querySelectorAll('.phase-btn').forEach(b => b.disabled = false);
+                        hideProgressPanel();
+                        refreshCacheInfo();
+                    }
+                );
+            }
+
+            async function refreshCacheInfo() {
+                try {
+                    const response = await fetch('/config-editor/run/cache-info');
+                    const data = await response.json();
+                    updateCacheDisplay(data);
+                } catch (err) {
+                    console.error('Failed to refresh cache info:', err);
+                }
+            }
+
+            function updateCacheDisplay(cacheInfo) {
+                // Update Bronze
+                document.querySelector('#panel-execute .status-card:nth-child(2) .status-row:nth-child(1) .value').textContent = cacheInfo.Bronze.size_mb + ' MB';
+                document.querySelector('#panel-execute .status-card:nth-child(2) .status-row:nth-child(2) .value').textContent = cacheInfo.Bronze.file_count;
+                document.querySelector('#panel-execute .status-card:nth-child(2) .status-row:nth-child(3) .value').textContent = cacheInfo.Bronze.last_modified || 'Never';
+                // Update Silver
+                document.querySelector('#panel-execute .status-card:nth-child(3) .status-row:nth-child(1) .value').textContent = cacheInfo.Silver.size_mb + ' MB';
+                document.querySelector('#panel-execute .status-card:nth-child(3) .status-row:nth-child(2) .value').textContent = cacheInfo.Silver.file_count;
+                document.querySelector('#panel-execute .status-card:nth-child(3) .status-row:nth-child(3) .value').textContent = cacheInfo.Silver.last_modified || 'Never';
+            }
+        </script>
+</body>
+</html>
