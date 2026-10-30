@@ -62,8 +62,7 @@ class PipelineOrchestrator:
 
             finally:
                 # Restore original dates
-                app_settings.extractor_settings.start_date = original_start
-                app_settings.extractor_settings.end_date = original_end
+                pass
 
     def run_cloud_push(self, data_layer: str, date: str = "",) -> None:
         """Push data to cloud (S3)."""
