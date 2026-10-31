@@ -65,6 +65,10 @@
         .hidden-input { display: none; }
         
         .section-title { font-size: 15px; font-weight: 600; color: #1a1a1a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+        
+        /* Conditional fields */
+        .conditional-fields { display: none; }
+        .conditional-fields.active { display: block; }
     </style>
 </head>
 <body>
@@ -82,57 +86,25 @@
         {% endif %}
         
         <form method="POST" id="configForm">
-            <div class="tabs">
-                <button type="button" class="tab-btn active" data-tab="application">Application</button>
-                <button type="button" class="tab-btn" data-tab="extractor">Extractor</button>
-                <button type="button" class="tab-btn" data-tab="ingestion">Ingestion</button>
-                <button type="button" class="tab-btn" data-tab="cloud">Cloud</button>
-                <button type="button" class="tab-btn" data-tab="broker">Broker Config</button>
-            </div>
-            
-            <!-- Application Tab -->
-            <div class="tab-content active" id="tab-application">
+                    <div class="tabs">
+                        <button type="button" class="tab-btn" data-tab="extractor">Extractor</button>
+                        <button type="button" class="tab-btn" data-tab="ingestion-database">Ingestion & Database</button>
+                        <button type="button" class="tab-btn" data-tab="cloud">Cloud</button>
+                        <button type="button" class="tab-btn active" data-tab="broker">Broker Config</button>
+                    </div>
+           
+                                <!-- Extractor Tab -->
+                                <div class="tab-content" id="tab-extractor">
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Name</label>
-                        <input type="text" name="app_name" value="{{ settings.application.name if settings.application else 'Market Data Extractor' }}">
-                    </div>
-                    <div class="form-group">
-                        <label>Version</label>
-                        <input type="text" name="app_version" value="{{ settings.application.version if settings.application else '1.0.0' }}">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Description</label>
-                    <textarea name="app_description" rows="2">{{ settings.application.description if settings.application else '' }}</textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Environment</label>
-                        <select name="app_environment">
-                            <option value="development" {% if (settings.application.environment if settings.application else 'development') == 'development' %}selected{% endif %}>development</option>
-                            <option value="staging" {% if (settings.application.environment if settings.application else '') == 'staging' %}selected{% endif %}>staging</option>
-                            <option value="production" {% if (settings.application.environment if settings.application else '') == 'production' %}selected{% endif %}>production</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label><div class="checkbox-group"><input type="checkbox" name="app_debug" {% if (settings.application.debug if settings.application else true) %}checked{% endif %}><span>Debug Mode</span></div></label>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Extractor Tab -->
-            <div class="tab-content" id="tab-extractor">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Client (Broker)</label>
-                        <select name="ext_client">
-                            <option value="upstox" {% if (settings.extractor_settings.client if settings.extractor_settings else 'upstox') == 'upstox' %}selected{% endif %}>upstox</option>
-                            <option value="groww" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'groww' %}selected{% endif %}>groww</option>
-                            <option value="dhan" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'dhan' %}selected{% endif %}>dhan</option>
-                            <option value="zerodha" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'zerodha' %}selected{% endif %}>zerodha</option>
-                        </select>
-                    </div>
+                                    <div class="form-group">
+                                        <label>Client (Broker)</label>
+                                        <select name="ext_client" id="extClientSelect">
+                                            <option value="upstox" {% if (settings.extractor_settings.client if settings.extractor_settings else 'upstox') == 'upstox' %}selected{% endif %}>upstox</option>
+                                            <option value="groww" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'groww' %}selected{% endif %}>groww</option>
+                                            <option value="dhan" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'dhan' %}selected{% endif %}>dhan</option>
+                                            <option value="zerodha" {% if (settings.extractor_settings.client if settings.extractor_settings else '') == 'zerodha' %}selected{% endif %}>zerodha</option>
+                                        </select>
+                                    </div>
                     <div class="form-group">
                         <label>Interval (minutes)</label>
                         <input type="number" name="ext_interval" min="1" max="1440" value="{{ settings.extractor_settings.interval if settings.extractor_settings else 1 }}">
@@ -161,31 +133,191 @@
                     </div>
                 </div>
             </div>
-            
-            <!-- Ingestion Tab -->
-            <div class="tab-content" id="tab-ingestion">
+           
+            <!-- Ingestion & Database Tab -->
+            <div class="tab-content" id="tab-ingestion-database">
+                <!-- Ingestion Settings -->
+                <div class="section-title">Ingestion Settings</div>
                 <div class="form-row">
                     <div class="form-group">
                         <label><div class="checkbox-group"><input type="checkbox" name="ing_enabled" {% if (settings.ingestion_settings.enabled if settings.ingestion_settings else true) %}checked{% endif %}><span>Enabled</span></div></label>
                     </div>
                     <div class="form-group">
                         <label>Target Database</label>
-                        <select name="ing_target">
-                            <option value="clickhouse" {% if (settings.ingestion_settings.target if settings.ingestion_settings else 'clickhouse') == 'clickhouse' %}selected{% endif %}>clickhouse</option>
-                            <option value="postgresql" {% if (settings.ingestion_settings.target if settings.ingestion_settings else '') == 'postgresql' %}selected{% endif %}>postgresql</option>
-                            <option value="timescaledb" {% if (settings.ingestion_settings.target if settings.ingestion_settings else '') == 'timescaledb' %}selected{% endif %}>timescaledb</option>
+                        <select name="ing_target" id="ingTargetSelect">
+                            <option value="clickhouse" {% if (settings.ingestion_settings.target if settings.ingestion_settings else 'clickhouse') == 'clickhouse' %}selected{% endif %}>ClickHouse</option>
+                            <option value="postgresql" {% if (settings.ingestion_settings.target if settings.ingestion_settings else '') == 'postgresql' %}selected{% endif %}>PostgreSQL</option>
+                            <option value="timescaledb" {% if (settings.ingestion_settings.target if settings.ingestion_settings else '') == 'timescaledb' %}selected{% endif %}>TimescaleDB</option>
                         </select>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Batch Size</label>
-                        <input type="number" name="ing_batch_size" min="100" max="100000" value="{{ settings.ingestion_settings.batch_size if settings.ingestion_settings else 10000 }}">
-                    </div>
-                    <div class="form-group">
-                        <label><div class="checkbox-group"><input type="checkbox" name="ing_create_tables" {% if (settings.ingestion_settings.create_tables if settings.ingestion_settings else true) %}checked{% endif %}><span>Create Tables</span></div></label>
+                
+                <!-- ClickHouse specific fields -->
+                <div class="conditional-fields active" id="ingFieldsClickhouse">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Batch Size</label>
+                            <input type="number" name="ing_batch_size" min="100" max="100000" value="{{ settings.ingestion_settings.batch_size if settings.ingestion_settings else 10000 }}">
+                        </div>
+                        <div class="form-group">
+                            <label><div class="checkbox-group"><input type="checkbox" name="ing_create_tables" {% if (settings.ingestion_settings.create_tables if settings.ingestion_settings else true) %}checked{% endif %}><span>Create Tables</span></div></label>
+                        </div>
                     </div>
                 </div>
+                
+                <!-- PostgreSQL specific fields -->
+                <div class="conditional-fields" id="ingFieldsPostgresql">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Batch Size</label>
+                            <input type="number" name="ing_batch_size" min="100" max="100000" value="{{ settings.ingestion_settings.batch_size if settings.ingestion_settings else 10000 }}">
+                        </div>
+                        <div class="form-group">
+                            <label><div class="checkbox-group"><input type="checkbox" name="ing_create_tables" {% if (settings.ingestion_settings.create_tables if settings.ingestion_settings else true) %}checked{% endif %}><span>Create Tables</span></div></label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- TimescaleDB specific fields -->
+                <div class="conditional-fields" id="ingFieldsTimescaledb">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Batch Size</label>
+                            <input type="number" name="ing_batch_size" min="100" max="100000" value="{{ settings.ingestion_settings.batch_size if settings.ingestion_settings else 10000 }}">
+                        </div>
+                        <div class="form-group">
+                            <label><div class="checkbox-group"><input type="checkbox" name="ing_create_tables" {% if (settings.ingestion_settings.create_tables if settings.ingestion_settings else true) %}checked{% endif %}><span>Create Tables</span></div></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Database Configuration Section -->
+                                <div class="section-title" style="margin-top: 24px;">Database Configuration</div>
+                
+                                <div class="conditional-fields active" id="dbFieldsClickhouse">
+                                    <div class="section-title">ClickHouse Configuration</div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Host</label>
+                                            <input type="text" name="ch_host" value="{{ settings.database_settings.clickhouse.host if settings.database_settings and settings.database_settings.clickhouse else 'localhost' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Port</label>
+                                            <input type="number" name="ch_port" value="{{ settings.database_settings.clickhouse.port if settings.database_settings and settings.database_settings.clickhouse else 8123 }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Database</label>
+                                            <input type="text" name="ch_database" value="{{ settings.database_settings.clickhouse.database if settings.database_settings and settings.database_settings.clickhouse else 'market_data' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Username</label>
+                                            <input type="text" name="ch_username" value="{{ settings.database_settings.clickhouse.username if settings.database_settings and settings.database_settings.clickhouse else 'default' }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Password</label>
+                                            <input type="password" name="ch_password" value="{{ settings.database_settings.clickhouse.password if settings.database_settings and settings.database_settings.clickhouse else '' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Secure (SSL)</label>
+                                            <div class="checkbox-group"><input type="checkbox" name="ch_secure" {% if settings.database_settings and settings.database_settings.clickhouse and settings.database_settings.clickhouse.secure %}checked{% endif %}><span>Yes</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Compression</label>
+                                            <div class="checkbox-group"><input type="checkbox" name="ch_compression" {% if settings.database_settings and settings.database_settings.clickhouse and settings.database_settings.clickhouse.compression %}checked{% endif %}><span>Yes</span></div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Connect Timeout (s)</label>
+                                            <input type="number" name="ch_connect_timeout" value="{{ settings.database_settings.clickhouse.connect_timeout if settings.database_settings and settings.database_settings.clickhouse else 10 }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Pool Min</label>
+                                            <input type="number" name="ch_pool_min" value="{{ settings.database_settings.clickhouse.pool_min if settings.database_settings and settings.database_settings.clickhouse else 1 }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Pool Max</label>
+                                            <input type="number" name="ch_pool_max" value="{{ settings.database_settings.clickhouse.pool_max if settings.database_settings and settings.database_settings.clickhouse else 10 }}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="conditional-fields" id="dbFieldsPostgresql">
+                                    <div class="section-title" style="margin-top: 24px;">PostgreSQL Configuration</div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Host</label>
+                                            <input type="text" name="pg_host" value="{{ settings.database_settings.postgresql.host if settings.database_settings and settings.database_settings.postgresql else 'localhost' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Port</label>
+                                            <input type="number" name="pg_port" value="{{ settings.database_settings.postgresql.port if settings.database_settings and settings.database_settings.postgresql else 5432 }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Database</label>
+                                            <input type="text" name="pg_database" value="{{ settings.database_settings.postgresql.database if settings.database_settings and settings.database_settings.postgresql else 'market_data' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Username</label>
+                                            <input type="text" name="pg_username" value="{{ settings.database_settings.postgresql.username if settings.database_settings and settings.database_settings.postgresql else 'postgres' }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Password</label>
+                                            <input type="password" name="pg_password" value="{{ settings.database_settings.postgresql.password if settings.database_settings and settings.database_settings.postgresql else '' }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>SSL Mode</label>
+                                            <select name="pg_ssl_mode">
+                                                <option value="disable" {% if settings.database_settings and settings.database_settings.postgresql and settings.database_settings.postgresql.ssl_mode == 'disable' %}selected{% endif %}>disable</option>
+                                                <option value="allow" {% if settings.database_settings and settings.database_settings.postgresql and settings.database_settings.postgresql.ssl_mode == 'allow' %}selected{% endif %}>allow</option>
+                                                <option value="prefer" {% if settings.database_settings and settings.database_settings.postgresql and settings.database_settings.postgresql.ssl_mode == 'prefer' %}selected{% endif %}>prefer</option>
+                                                <option value="require" {% if settings.database_settings and settings.database_settings.postgresql and settings.database_settings.postgresql.ssl_mode == 'require' %}selected{% endif %}>require</option>
+                                                <option value="verify-ca" {% if settings.database_settings and settings.database_settings.postgresql and settings.database_settings.postgresql.ssl_mode == 'verify-ca' %}selected{% endif %}>verify-ca</option>
+                                                <option value="verify-full" {% if settings.database_settings and settings.database_settings.postgresql and settings.database_settings.postgresql.ssl_mode == 'verify-full' %}selected{% endif %}>verify-full</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Pool Min</label>
+                                            <input type="number" name="pg_pool_min" value="{{ settings.database_settings.postgresql.pool_min if settings.database_settings and settings.database_settings.postgresql else 1 }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Pool Max</label>
+                                            <input type="number" name="pg_pool_max" value="{{ settings.database_settings.postgresql.pool_max if settings.database_settings and settings.database_settings.postgresql else 10 }}">
+                                        </div>
+                                    </div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Connect Timeout (s)</label>
+                                            <input type="number" name="pg_connect_timeout" value="{{ settings.database_settings.postgresql.connect_timeout if settings.database_settings and settings.database_settings.postgresql else 10 }}">
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Application Name</label>
+                                            <input type="text" name="pg_application_name" value="{{ settings.database_settings.postgresql.application_name if settings.database_settings and settings.database_settings.postgresql else 'market_data_pipeline' }}">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="conditional-fields" id="dbFieldsTimescaledb">
+                                    <div class="section-title" style="margin-top: 24px;">TimescaleDB Configuration</div>
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label>Chunk Time Interval</label>
+                                            <input type="text" name="ts_chunk_time_interval" value="{{ settings.database_settings.timescaledb.chunk_time_interval if settings.database_settings and settings.database_settings.timescaledb else '1 day' }}">
+                                        </div>
+                                    </div>
+                                </div>
             </div>
             
             <!-- Cloud Tab -->
@@ -193,93 +325,282 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>Cloud Provider</label>
-                        <select name="cloud_client">
-                            <option value="aws" {% if (settings.cloud_settings.client if settings.cloud_settings else 'aws') == 'aws' %}selected{% endif %}>aws</option>
-                            <option value="azure" {% if (settings.cloud_settings.client if settings.cloud_settings else '') == 'azure' %}selected{% endif %}>azure</option>
-                            <option value="gcp" {% if (settings.cloud_settings.client if settings.cloud_settings else '') == 'gcp' %}selected{% endif %}>gcp</option>
+                        <select name="cloud_client" id="cloudClientSelect">
+                            <option value="aws" {% if (settings.cloud_settings.client if settings.cloud_settings else 'aws') == 'aws' %}selected{% endif %}>AWS S3</option>
+                            <option value="azure" {% if (settings.cloud_settings.client if settings.cloud_settings else '') == 'azure' %}selected{% endif %}>Azure Blob Storage</option>
+                            <option value="gcp" {% if (settings.cloud_settings.client if settings.cloud_settings else '') == 'gcp' %}selected{% endif %}>Google Cloud Storage</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label><div class="checkbox-group"><input type="checkbox" name="cloud_push_to_cloud" {% if (settings.cloud_settings.push_to_cloud if settings.cloud_settings else true) %}checked{% endif %}><span>Push to Cloud</span></div></label>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Storage Name (Bucket)</label>
-                        <input type="text" name="cloud_storage_name" value="{{ settings.cloud_settings.storage_name if settings.cloud_settings else 'marketdata-pipeline' }}">
+                
+                <!-- AWS S3 specific fields -->
+                <div class="conditional-fields active" id="cloudFieldsAws">
+                    <div class="section-title">AWS S3 Configuration</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Access Key ID</label>
+                            <input type="text" name="aws_access_key_id" value="{{ settings.cloud_settings.aws.access_key_id if settings.cloud_settings and settings.cloud_settings.aws else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Secret Access Key</label>
+                            <input type="password" name="aws_secret_access_key" value="{{ settings.cloud_settings.aws.secret_access_key if settings.cloud_settings and settings.cloud_settings.aws else '' }}">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Destination Folder</label>
-                        <input type="text" name="cloud_destination_folder" value="{{ settings.cloud_settings.destination_folder if settings.cloud_settings else 'market_data_storage' }}">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Region</label>
+                            <input type="text" name="aws_region" value="{{ settings.cloud_settings.aws.region if settings.cloud_settings and settings.cloud_settings.aws else 'us-east-1' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>S3 Endpoint URL (optional)</label>
+                            <input type="text" name="aws_s3_endpoint_url" value="{{ settings.cloud_settings.aws.s3_endpoint_url if settings.cloud_settings and settings.cloud_settings.aws else '' }}" placeholder="For S3-compatible storage (MinIO, etc.)">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Azure Blob Storage specific fields -->
+                <div class="conditional-fields" id="cloudFieldsAzure">
+                    <div class="section-title">Azure Blob Storage Configuration</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Storage Account Name</label>
+                            <input type="text" name="azure_storage_account_name" value="{{ settings.cloud_settings.azure.storage_account_name if settings.cloud_settings and settings.cloud_settings.azure else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Storage Account Key</label>
+                            <input type="password" name="azure_storage_account_key" value="{{ settings.cloud_settings.azure.storage_account_key if settings.cloud_settings and settings.cloud_settings.azure else '' }}">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Container Name</label>
+                            <input type="text" name="azure_storage_container_name" value="{{ settings.cloud_settings.azure.container_name if settings.cloud_settings and settings.cloud_settings.azure else 'marketdata-pipeline' }}">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- GCP specific fields -->
+                <div class="conditional-fields" id="cloudFieldsGcp">
+                    <div class="section-title">Google Cloud Storage Configuration</div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Project ID</label>
+                            <input type="text" name="gcp_project_id" value="{{ settings.cloud_settings.gcp.project_id if settings.cloud_settings and settings.cloud_settings.gcp else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Storage Bucket</label>
+                            <input type="text" name="gcp_storage_bucket" value="{{ settings.cloud_settings.gcp.storage_bucket if settings.cloud_settings and settings.cloud_settings.gcp else 'marketdata-pipeline' }}">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Credentials Path</label>
+                            <input type="text" name="gcp_credentials_path" value="{{ settings.cloud_settings.gcp.credentials_path if settings.cloud_settings and settings.cloud_settings.gcp else '' }}" placeholder="Path to service account JSON">
+                        </div>
                     </div>
                 </div>
             </div>
             
             <!-- Broker Config Tab -->
-            <div class="tab-content" id="tab-broker">
-                <div class="section-title">Processable Segments</div>
-                <div class="segments-list" id="segmentsList">
-                    {% for seg in all_segments %}
-                    <div class="segment-item">
-                        <input type="checkbox" name="segments_checkbox" value="{{ seg }}" {% if seg in enabled_segments %}checked{% endif %}>
-                        <span class="segment-name {% if seg not in enabled_segments %}disabled{% endif %}">{{ seg }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                <small>Checked = enabled, Unchecked = disabled (saved with # prefix in YAML)</small>
-                
-                <div class="section-title" style="margin-top: 24px;">Session Bounds (Trading Hours)</div>
-                <div class="kv-list" id="sessionBoundsList">
-                    {% for key, value in (settings.broker_configuration.session_bounds if settings.broker_configuration and settings.broker_configuration.session_bounds else {}).items() %}
-                    <div class="kv-item">
-                        <input type="text" class="key-input" name="sb_key" value="{{ key }}" placeholder="Segment (e.g., NSE_INDEX)">
-                        <span class="kv-sep">→</span>
-                        <input type="time" class="time-input" name="sb_start" value="{{ value.start }}" step="60">
-                        <span class="kv-sep">-</span>
-                        <input type="time" class="time-input" name="sb_end" value="{{ value.end }}" step="60">
-                        <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-secondary add-row-btn" onclick="addSessionBound()">+ Add Session Bound</button>
-                
-                <div class="section-title" style="margin-top: 24px;">Symbol Name Mapping</div>
-                <div class="kv-list" id="symbolMappingList">
-                    {% for key, value in (settings.broker_configuration.symbol_name_mapping if settings.broker_configuration and settings.broker_configuration.symbol_name_mapping else {}).items() %}
-                    <div class="kv-item">
-                        <input type="text" class="key-input" name="sm_key" value="{{ key }}" placeholder="Source symbol (e.g., NIFTY 50)">
-                        <span class="kv-sep">→</span>
-                        <input type="text" class="val-input" name="sm_val" value="{{ value }}" placeholder="Display name (e.g., NIFTY50)">
-                        <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
-                    </div>
-                    {% endfor %}
-                </div>
-                <button type="button" class="btn btn-secondary add-row-btn" onclick="addSymbolMapping()">+ Add Symbol Mapping</button>
-                
-                <!-- Hidden inputs for form submission -->
-                <input type="hidden" name="segments_enabled" id="segmentsEnabled">
-                <input type="hidden" name="segments_disabled" id="segmentsDisabled">
-                <input type="hidden" name="session_bounds_json" id="sessionBoundsJson">
-                <input type="hidden" name="symbol_mappings_json" id="symbolMappingsJson">
-            </div>
-            
+                        <div class="tab-content active" id="tab-broker">
+                            <div class="section-title">Processable Segments for {{ active_client.upper() }}</div>
+                            <div class="segments-list" id="segmentsList">
+                                {% for seg in all_segments %}
+                                <div class="segment-item">
+                                    <input type="checkbox" name="segments_checkbox" value="{{ seg }}" {% if seg in enabled_segments %}checked{% endif %}>
+                                    <span class="segment-name {% if seg not in enabled_segments %}disabled{% endif %}">{{ seg }}</span>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small>Checked = enabled, Unchecked = disabled (saved with # prefix in YAML)</small>
+               
+                            <div class="section-title" style="margin-top: 24px;">Session Bounds (Trading Hours)</div>
+                            <div class="kv-list" id="sessionBoundsList">
+                                {% for key, value in session_bounds.items() %}
+                                <div class="kv-item">
+                                    <input type="text" class="key-input" name="sb_key" value="{{ key }}" placeholder="Segment (e.g., NSE_INDEX)">
+                                    <span class="kv-sep">→</span>
+                                    <input type="time" class="time-input" name="sb_start" value="{{ value.start }}" step="60">
+                                    <span class="kv-sep">-</span>
+                                    <input type="time" class="time-input" name="sb_end" value="{{ value.end }}" step="60">
+                                    <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-secondary add-row-btn" onclick="addSessionBound()">+ Add Session Bound</button>
+               
+                            <div class="section-title" style="margin-top: 24px;">Symbol Name Mapping</div>
+                            <div class="kv-list" id="symbolMappingList">
+                                {% for key, value in symbol_mappings.items() %}
+                                <div class="kv-item">
+                                    <input type="text" class="key-input" name="sm_key" value="{{ key }}" placeholder="Source symbol (e.g., NIFTY 50)">
+                                    <span class="kv-sep">→</span>
+                                    <input type="text" class="val-input" name="sm_val" value="{{ value }}" placeholder="Display name (e.g., NIFTY50)">
+                                    <button type="button" class="btn-remove" onclick="this.closest('.kv-item').remove(); updateHiddenFields();">Remove</button>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="btn btn-secondary add-row-btn" onclick="addSymbolMapping()">+ Add Symbol Mapping</button>
+               
+                            <!-- Hidden inputs for form submission -->
+                            <input type="hidden" name="segments_enabled" id="segmentsEnabled">
+                            <input type="hidden" name="segments_disabled" id="segmentsDisabled">
+                            <input type="hidden" name="session_bounds_json" id="sessionBoundsJson">
+                            <input type="hidden" name="symbol_mappings_json" id="symbolMappingsJson">
+                        </div>
+           
             <div class="btn-group">
                 <button type="submit" class="btn btn-primary">Save Settings</button>
+                <button type="button" class="btn btn-secondary" onclick="saveEnvConfig()">Save to .env</button>
             </div>
         </form>
     </div>
 
     <script>
-        // Tab switching
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                btn.classList.add('active');
-                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            // Tab switching
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+                });
             });
-        });
-        
+       
+            // Client change handler - reload broker config
+            document.getElementById('extClientSelect')?.addEventListener('change', async function() {
+                const client = this.value;
+                try {
+                    const response = await fetch('/config-editor/broker-config/' + client);
+                    const data = await response.json();
+               
+                    // Update segments
+                    const segmentsList = document.getElementById('segmentsList');
+                    segmentsList.innerHTML = '';
+                    data.all_segments.forEach(seg => {
+                        const div = document.createElement('div');
+                        div.className = 'segment-item';
+                        const enabled = data.enabled_segments.includes(seg);
+                        div.innerHTML = `
+                            <input type="checkbox" name="segments_checkbox" value="${seg}" ${enabled ? 'checked' : ''}>
+                            <span class="segment-name ${enabled ? '' : 'disabled'}">${seg}</span>
+                        `;
+                        segmentsList.appendChild(div);
+                    });
+               
+                    // Re-attach segment checkbox handlers
+                    document.querySelectorAll('input[name="segments_checkbox"]').forEach(cb => {
+                        cb.addEventListener('change', updateSegmentsHidden);
+                    });
+                    updateSegmentsHidden();
+               
+                    // Update session bounds
+                    const sessionBoundsList = document.getElementById('sessionBoundsList');
+                    sessionBoundsList.innerHTML = '';
+                    for (const [key, value] of Object.entries(data.session_bounds || {})) {
+                        addSessionBound(key, value.start, value.end);
+                    }
+               
+                    // Update symbol mappings
+                    const symbolMappingList = document.getElementById('symbolMappingList');
+                    symbolMappingList.innerHTML = '';
+                    for (const [key, value] of Object.entries(data.symbol_mappings || {})) {
+                        addSymbolMapping(key, value);
+                    }
+               
+                    updateHiddenFields();
+                } catch (e) {
+                    console.error('Failed to load broker config:', e);
+                }
+            });
+            
+            // Ingestion target change handler
+                        document.getElementById('ingTargetSelect')?.addEventListener('change', function() {
+                            const target = this.value;
+                            // Hide all ingestion conditional fields
+                            document.querySelectorAll('[id^="ingFields"]').forEach(el => {
+                                el.classList.remove('active');
+                            });
+                            // Show selected target fields
+                            const targetFields = document.getElementById('ingFields' + target.charAt(0).toUpperCase() + target.slice(1));
+                            if (targetFields) {
+                                targetFields.classList.add('active');
+                            }
+                
+                            // Also show/hide database configuration based on target
+                            document.querySelectorAll('[id^="dbFields"]').forEach(el => {
+                                el.classList.remove('active');
+                            });
+                            const dbFields = document.getElementById('dbFields' + target.charAt(0).toUpperCase() + target.slice(1));
+                            if (dbFields) {
+                                dbFields.classList.add('active');
+                            }
+                        });
+            
+            // Cloud provider change handler
+            document.getElementById('cloudClientSelect')?.addEventListener('change', function() {
+                const provider = this.value;
+                // Hide all cloud conditional fields
+                document.querySelectorAll('[id^="cloudFields"]').forEach(el => {
+                    el.classList.remove('active');
+                });
+                // Show selected provider fields
+                const providerFields = document.getElementById('cloudFields' + provider.charAt(0).toUpperCase() + provider.slice(1));
+                if (providerFields) {
+                    providerFields.classList.add('active');
+                }
+            });
+       
+            // Client change handler - reload broker config
+            document.getElementById('extClientSelect')?.addEventListener('change', async function() {
+                const client = this.value;
+                try {
+                    const response = await fetch('/config-editor/broker-config/' + client);
+                    const data = await response.json();
+               
+                    // Update segments
+                    const segmentsList = document.getElementById('segmentsList');
+                    segmentsList.innerHTML = '';
+                    data.all_segments.forEach(seg => {
+                        const div = document.createElement('div');
+                        div.className = 'segment-item';
+                        const enabled = data.enabled_segments.includes(seg);
+                        div.innerHTML = `
+                            <input type="checkbox" name="segments_checkbox" value="${seg}" ${enabled ? 'checked' : ''}>
+                            <span class="segment-name ${enabled ? '' : 'disabled'}">${seg}</span>
+                        `;
+                        segmentsList.appendChild(div);
+                    });
+               
+                    // Re-attach segment checkbox handlers
+                    document.querySelectorAll('input[name="segments_checkbox"]').forEach(cb => {
+                        cb.addEventListener('change', updateSegmentsHidden);
+                    });
+                    updateSegmentsHidden();
+               
+                    // Update session bounds
+                    const sessionBoundsList = document.getElementById('sessionBoundsList');
+                    sessionBoundsList.innerHTML = '';
+                    for (const [key, value] of Object.entries(data.session_bounds || {})) {
+                        addSessionBound(key, value.start, value.end);
+                    }
+               
+                    // Update symbol mappings
+                    const symbolMappingList = document.getElementById('symbolMappingList');
+                    symbolMappingList.innerHTML = '';
+                    for (const [key, value] of Object.entries(data.symbol_mappings || {})) {
+                        addSymbolMapping(key, value);
+                    }
+               
+                    updateHiddenFields();
+                } catch (e) {
+                    console.error('Failed to load broker config:', e);
+                }
+            });
+       
         // Segments checkbox handling
         function updateSegmentsHidden() {
             const enabled = [];
@@ -297,12 +618,12 @@
                 el.classList.toggle('disabled', !cb.checked);
             });
         }
-        
+       
         document.querySelectorAll('input[name="segments_checkbox"]').forEach(cb => {
             cb.addEventListener('change', updateSegmentsHidden);
         });
         updateSegmentsHidden(); // Initial
-        
+       
         // Session bounds
         function addSessionBound(key = '', start = '', end = '') {
             const container = document.getElementById('sessionBoundsList');
@@ -318,9 +639,9 @@
             `;
             container.appendChild(div);
         }
-        
+       
         window.addSessionBound = addSessionBound;
-        
+       
         // Symbol mappings
         function addSymbolMapping(key = '', val = '') {
             const container = document.getElementById('symbolMappingList');
@@ -334,9 +655,9 @@
             `;
             container.appendChild(div);
         }
-        
+       
         window.addSymbolMapping = addSymbolMapping;
-        
+       
         // Build hidden JSON fields before submit
         function updateHiddenFields() {
             // Session bounds
@@ -349,7 +670,7 @@
                 if (key) bounds[key] = { start, end };
             });
             document.getElementById('sessionBoundsJson').value = JSON.stringify(bounds);
-            
+           
             // Symbol mappings
             const mappings = {};
             document.querySelectorAll('#symbolMappingList .kv-item').forEach(item => {
@@ -360,7 +681,7 @@
             });
             document.getElementById('symbolMappingsJson').value = JSON.stringify(mappings);
         }
-        
+       
         // Update on any change in dynamic lists
         ['sessionBoundsList', 'symbolMappingList'].forEach(id => {
             const container = document.getElementById(id);
@@ -369,9 +690,50 @@
                 container.addEventListener('change', updateHiddenFields);
             }
         });
-        
+       
         // Also update on form submit
         document.getElementById('configForm').addEventListener('submit', updateHiddenFields);
-    </script>
-</body>
-</html>
+        
+        // Save to .env file
+        async function saveEnvConfig() {
+            // Collect all database and cloud form values
+            const formData = new FormData(document.getElementById('configForm'));
+            
+            try {
+                const response = await fetch('/config-editor/save-env', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.message) {
+                    alert(result.message);
+                    // Reload page to show updated settings
+                    location.reload();
+                } else if (result.error) {
+                    alert('Error: ' + result.error);
+                }
+            } catch (e) {
+                console.error('Failed to save .env config:', e);
+                alert('Failed to save: ' + e.message);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+                    // Trigger ingestion target change to show correct fields
+                    const ingTarget = document.getElementById('ingTargetSelect');
+                    if (ingTarget) {
+                        const event = new Event('change');
+                        ingTarget.dispatchEvent(event);
+                    }
+            
+                    // Trigger cloud provider change to show correct fields
+                    const cloudClient = document.getElementById('cloudClientSelect');
+                    if (cloudClient) {
+                        const event = new Event('change');
+                        cloudClient.dispatchEvent(event);
+                    }
+                });
+            </script>
+        </body>
+        </html>

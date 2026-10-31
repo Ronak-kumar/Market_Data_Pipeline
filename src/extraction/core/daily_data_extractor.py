@@ -29,14 +29,14 @@ class DailyDataExtractor:
         self._initialize_client()
         self._initialize_cloud_clients()
         self._config()
-        self.segment_type_map = self._settings_config.broker_configuration.processable_segments
+        self.segment_type_map = self._settings_config.active_broker_configuration.processable_segments
         self._progress_callback = None
 
     def _config(self):
         expiry_suffix_duration = self._settings_config.extractor_settings.expiry_duration
         end_date = self._settings_config.extractor_settings.end_date
         start_date = self._settings_config.extractor_settings.start_date
-        processable_segments = self._settings_config.broker_configuration.processable_segments
+        processable_segments = self._settings_config.active_broker_configuration.processable_segments
         extraction_interval = self._settings_config.extractor_settings.interval
         extraction_variation = "intraday" if end_date == "" and start_date == "" else "historical"
 

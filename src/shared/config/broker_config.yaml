@@ -1,0 +1,162 @@
+# Broker Configuration
+# Each broker has its own segments, session bounds, and symbol mappings
+# This file is loaded separately from settings.yaml to keep the main config clean
+
+upstox:
+  processable_segments:
+    - NSE_INDEX
+    - BSE_INDEX
+    - GLOBAL_INDEX
+    - '# GLOBAL_INDICATOR'
+    - NSE_FO
+    - BSE_FO
+    - MCX_FO
+    - '# BCD_FO'
+    - '# NCD_FO'
+    - '# BSE_EQ'
+    - NSE_EQ
+    - NSE_COM
+    - '# NSE_FNO'
+    - '# BSE_FNO'
+    - '# MCX_FNO'
+    - '# NSE_CURRENCY'
+    - '# BSE_CURRENCY'
+    - '# BSE_COM'
+  session_bounds:
+    NSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    NSE_FO:
+      start: "09:15"
+      end: "15:40"
+    BSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    BSE_FO:
+      start: "09:15"
+      end: "15:40"
+    MCX_FO:
+      start: "09:15"
+      end: "23:30"
+  symbol_name_mapping:
+    "NIFTY FIN SERVICE": "FINNIFTY"
+    "NIFTY 50": "NIFTY50"
+    "Nifty50": "NIFTY50"
+    "INDIA VIX": "VIX"
+    "IndiaVix": "VIX"
+    "NIFTY BANK": "BANKNIFTY"
+    "BankNifty": "BANKNIFTY"
+    "Banknifty": "BANKNIFTY"
+    "BSE BANKEX": "BANKEX"
+    "BSEBANKEX": "BANKEX"
+    "BSE SENSEX": "SENSEX"
+    "BSESENSEX": "SENSEX"
+
+groww:
+  processable_segments:
+    - NSE_EQ
+    - BSE_FO
+    - BSE_INDEX
+    - NSE_FO
+    - BSE_EQ
+    - MCX_FO
+    - NSE_INDEX
+  session_bounds:
+    NSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    NSE_FO:
+      start: "09:15"
+      end: "15:40"
+    BSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    BSE_FO:
+      start: "09:15"
+      end: "15:40"
+    MCX_FO:
+      start: "09:15"
+      end: "23:30"
+  symbol_name_mapping:
+    "NIFTY 50": "NIFTY50"
+    "NIFTY BANK": "BANKNIFTY"
+    "BSE SENSEX": "SENSEX"
+
+dhan:
+  processable_segments:
+    - NSE_EQ
+    - NSE_FNO
+    - BSE_EQ
+    - BSE_FNO
+    - NSE_IDX
+    - BSE_IDX
+    - MCX_FNO
+    - MCX_COM
+    - NSE_CUR
+    - BSE_CUR
+    - NSE_COM
+    - BSE_COM
+  session_bounds:
+    NSE_EQ:
+      start: "09:15"
+      end: "15:40"
+    NSE_FNO:
+      start: "09:15"
+      end: "15:40"
+    BSE_EQ:
+      start: "09:15"
+      end: "15:40"
+    BSE_FNO:
+      start: "09:15"
+      end: "15:40"
+    NSE_IDX:
+      start: "09:15"
+      end: "15:40"
+    BSE_IDX:
+      start: "09:15"
+      end: "15:40"
+    MCX_FNO:
+      start: "09:15"
+      end: "23:30"
+  symbol_name_mapping:
+    "NIFTY 50": "NIFTY50"
+    "NIFTY BANK": "BANKNIFTY"
+    "BSE SENSEX": "SENSEX"
+
+zerodha:
+  processable_segments:
+    - NSE_EQ
+    - NSE_FNO
+    - BSE_EQ
+    - BSE_FNO
+    - NSE_INDEX
+    - BSE_INDEX
+    - MCX_FNO
+    - NSE_CURRENCY
+    - BSE_CURRENCY
+  session_bounds:
+    NSE_EQ:
+      start: "09:15"
+      end: "15:40"
+    NSE_FNO:
+      start: "09:15"
+      end: "15:40"
+    BSE_EQ:
+      start: "09:15"
+      end: "15:40"
+    BSE_FNO:
+      start: "09:15"
+      end: "15:40"
+    NSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    BSE_INDEX:
+      start: "09:15"
+      end: "15:40"
+    MCX_FNO:
+      start: "09:15"
+      end: "23:30"
+  symbol_name_mapping:
+    "NIFTY 50": "NIFTY50"
+    "NIFTY BANK": "BANKNIFTY"
+    "BSE SENSEX": "SENSEX"

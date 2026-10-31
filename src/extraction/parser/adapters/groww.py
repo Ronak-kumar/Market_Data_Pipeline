@@ -11,7 +11,7 @@ class InstrumentValidationError(ValueError):
 
 @parser_registry.register("groww")
 class GrowwInstrumentParser(InstrumentParser):
-    AVAILABLE_SEGMENT = ['NSE_EQ', 'BSE_FO', 'BSE_INDEX', 'NSE_FO', 'BSE_EQ', 'MCX_FO', 'NSE_INDEX']
+    AVAILABLE_SEGMENTS = ['NSE_EQ', 'BSE_FO', 'BSE_INDEX', 'NSE_FO', 'BSE_EQ', 'MCX_FO', 'NSE_INDEX']
 
     def parse(self, data, ) -> pl.DataFrame:
         logger.info("Parsing Groww instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})

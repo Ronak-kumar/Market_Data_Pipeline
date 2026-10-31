@@ -80,9 +80,9 @@ class DatalakeSettings(BaseModel):
 
 
 class BrokerConfiguration(BaseModel):
-    processable_segments: list = Field(..., description="List of segments that can needs to be processed.")
-    session_bounds: dict = Field(..., description="Contains the session bounds of each segment")
-    symbol_name_mapping : dict = Field(..., description="Contains the mapping for all the Instrument name to the user selected name")
+    processable_segments: list = Field(default_factory=list, description="List of segments that can needs to be processed.")
+    session_bounds: dict = Field(default_factory=dict, description="Contains the session bounds of each segment")
+    symbol_name_mapping: dict = Field(default_factory=dict, description="Contains the mapping for all the Instrument name to the user selected name")
 
 
 class AppSettings(BaseSettings):
@@ -95,6 +95,16 @@ class AppSettings(BaseSettings):
 
     application: Application
     extractor_settings: ExtractorSettings
-    broker_configuration: BrokerConfiguration
+    broker_configuration: dict[str, BrokerConfiguration] = Field(default_factory=dict)
     cloud_settings: DatalakeSettings
     ingestion_settings: IngestionSettings = Field(default_factory=IngestionSettings)
+    
+    def get_broker_config(self, broker_name: str) -> BrokerConfiguration:
+        """Get broker configuration for a specific broker, returning empty config if not found."""
+        return self.broker_configuration.get(broker_name.lower(), BrokerConfiguration())
+    
+    @property
+    def active_broker_configuration(self) -> BrokerConfiguration:
+        """Get the broker configuration for the currently active client."""
+        client = self.extractor_settings.client.lower()
+        return self.get_broker_config(client)

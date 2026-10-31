@@ -20,7 +20,7 @@ def transform_data(filepaths: dict[str, Path], transformer: DataTransformer, dat
         normalized_df = transformer.base_transformation(filepath=filepath, segment=segment)
         logger.debug("Base transformation completed", extra={"segment": segment, "rows": normalized_df.height})
 
-        range = app_settings.broker_configuration.session_bounds.get(segment, {})
+        range = app_settings.active_broker_configuration.session_bounds.get(segment, {})
 
         if len(range) == 0:
             range["start"], range["end"] = normalized_df["Time"].min()[:5], normalized_df["Time"].max()[:5]
