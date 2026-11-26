@@ -3,14 +3,14 @@ import requests
 import json
 import polars as pl
 from shared.observability import get_logger
-from extraction.clients.registry import client_registry
+from extraction.clients import client_registry
 from pathlib import Path
 from datetime import datetime
 
-from shared.utils.utilities import unzipper
-
 logger = get_logger(__name__)
 
+
+ACCESS_TOKEN_PATH = Path("src/shared/config/access_token.json")
 
 @client_registry.register("zerodha")
 class ZerodhaAdapter(MarketDataProvider):
@@ -45,41 +45,37 @@ class ZerodhaAdapter(MarketDataProvider):
     }
 
     def _load_token(self) -> None:
-        logger.debug("Loading Zerodha access token")
-        access_token_path = Path(__file__).parents[2] / "access_token" / "zerodha.json"
-        if not access_token_path.exists():
-            logger.error("Access token file not found", extra={"path": str(access_token_path)})
-            raise ValueError("Zerodha access token file not found")
-
         try:
-            with access_token_path.open("r", encoding="utf-8") as file:
-                data = json.load(file)
+            # read_text() reads the whole file in one go, closing it automatically
+            data = json.loads(ACCESS_TOKEN_PATH.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            logger.error(f"Access token file not found: path={ACCESS_TOKEN_PATH}")
+            raise ValueError("Access token file not found")
         except json.JSONDecodeError as e:
-            logger.error("Failed to parse token file", extra={"path": str(access_token_path), "error": str(e)})
+            logger.error(f"Failed to parse token file: path={ACCESS_TOKEN_PATH}, error={e}")
             raise
 
         api_key = data.get("api_key")
         access_token = data.get("access_token")
 
         if not api_key or not access_token:
-            logger.error("API key or access token not found in token file", extra={"path": str(access_token_path)})
+            logger.error(f"API key or access token not found in token file: path={ACCESS_TOKEN_PATH}")
             raise ValueError("API key or access token not found in token file")
 
-        headers = {
-            "X-Kite-Version": "3",
-            "Authorization": f"token {api_key}:{access_token}",
+        self.HEADERS = {
+            "Content-Type": "application/json",
             "Accept": "application/json",
+            "Authorization": f"Bearer {access_token}",
         }
-        self.HEADERS = headers
         self.api_key = api_key
-        logger.debug("Zerodha access token loaded successfully")
+        logger.debug("Access token loaded successfully")
 
     def _fetch_master_instrument(self):
         """Fetch and parse Zerodha instrument master (gzipped CSV)."""
         logger.info("Fetching Zerodha master instrument list")
         self._load_token()
         try:
-            logger.debug("Making request to instruments URL", extra={"url": self.INSTRUMENTS_URL})
+            logger.debug(f"Making request to instruments URL: url={self.INSTRUMENTS_URL}")
 
             df = pl.read_csv(
                 self.INSTRUMENTS_URL,
@@ -89,26 +85,26 @@ class ZerodhaAdapter(MarketDataProvider):
                     "tick_size": pl.Float64,
                 },
             )
-            logger.info(f"Zerodha master instrument fetched and parsed instrument_count : {len(df)}")
-            
+            logger.info(f"Zerodha master instrument fetched and parsed: instrument_count={len(df)}")
+
             return df
         except requests.RequestException as e:
-            logger.error("Error fetching Zerodha master instrument URL", extra={"error": str(e), "url": self.INSTRUMENTS_URL}, exc_info=True)
+            logger.error(f"Error fetching Zerodha master instrument URL: error={e}, url={self.INSTRUMENTS_URL}")
             raise
         except Exception as e:
-            logger.error("Error parsing Zerodha master instrument CSV", extra={"error": str(e)}, exc_info=True)
+            logger.error(f"Error parsing Zerodha master instrument CSV: error={e}")
             raise
 
     def fetch_instrument(self, row: dict, variation: str, date: str, interval: int):
         """Fetch historical candles for a Zerodha instrument."""
         instrument_token = row.get("instrument_token")
         if not instrument_token:
-            logger.warning("Missing instrument_token for Zerodha instrument", extra={"row": row})
+            logger.warning(f"Missing instrument_token for Zerodha instrument: row={row}")
             return None
 
         # Map interval to Zerodha format
         zerodha_interval = self.INTERVAL_MAP.get(interval, "day")
-        
+
         if variation == "intraday":
             return self._fetch_intraday(row, date, interval)
         elif variation == "historical":
@@ -119,15 +115,15 @@ class ZerodhaAdapter(MarketDataProvider):
         """Fetch historical data for a single date (or date range)."""
         instrument_token = row.get("instrument_token")
         url = self.HISTORICAL_URL.format(instrument_token=instrument_token, interval=interval)
-        
+
         # For daily data, we fetch the specific date
         params = {
             "from": f"{date} 09:15:00",
             "to": f"{date} 15:30:00",
             "oi": "1",  # Include OI for F&O
         }
-        
-        logger.debug("Fetching Zerodha historical", extra={"instrument_token": instrument_token, "interval": interval, "date": date})
+
+        logger.debug(f"Fetching Zerodha historical: instrument_token={instrument_token}, interval={interval}, date={date}")
         response = self._retry_policy_get(url, params)
         if response is None:
             return None
@@ -137,14 +133,14 @@ class ZerodhaAdapter(MarketDataProvider):
         """Fetch intraday data for a single date."""
         instrument_token = row.get("instrument_token")
         url = self.HISTORICAL_URL.format(instrument_token=instrument_token, interval=interval)
-        
+
         params = {
             "from": f"{date} 09:15:00",
             "to": f"{date} 15:30:00",
             "oi": "1",
         }
-        
-        logger.debug("Fetching Zerodha intraday", extra={"instrument_token": instrument_token, "interval": interval, "date": date})
+
+        logger.debug(f"Fetching Zerodha intraday: instrument_token={instrument_token}, interval={interval}, date={date}")
         response = self._retry_policy_get(url, params)
         if response is None:
             return None
@@ -153,61 +149,61 @@ class ZerodhaAdapter(MarketDataProvider):
     def _retry_policy_get(self, url: str, params: dict):
         """GET retry policy for Zerodha API."""
         import time as tm
-        logger.debug("Starting Zerodha GET retry policy", extra={"url": url, "max_retries": self.max_retries, "timeout": self.timeout})
-        
+        logger.debug(f"Starting Zerodha GET retry policy: url={url}, max_retries={self.max_retries}, timeout={self.timeout}")
+
         for attempt in range(1, self.max_retries + 1):
             try:
-                logger.debug("Making HTTP GET request", extra={"url": url, "attempt": attempt, "max_retries": self.max_retries, "params": params})
+                logger.debug(f"Making HTTP GET request: url={url}, attempt={attempt}, max_retries={self.max_retries}, params={params}")
                 response = self.session_client.get(url, headers=self.HEADERS, params=params, timeout=self.timeout)
 
                 if response.status_code == 429:
-                    logger.warning("[RATE_LIMIT] Rate limited", extra={"url": url, "attempt": attempt})
+                    logger.warning(f"[RATE_LIMIT] Rate limited: url={url}, attempt={attempt}")
                     self._reset_client_session()
                     tm.sleep(1)
                     continue
 
                 if response.status_code == 403:
-                    logger.error("[PERMISSION] Insufficient permission - check historical data add-on subscription", extra={"url": url, "attempt": attempt})
+                    logger.error(f"[PERMISSION] Insufficient permission - check historical data add-on subscription: url={url}, attempt={attempt}")
                     break
 
                 if response.status_code == 200:
-                    logger.debug("[OK] Request successful", extra={"url": url, "attempt": attempt, "response_size": len(response.content)})
+                    logger.debug(f"[OK] Request successful: url={url}, attempt={attempt}, response_size={len(response.content)}")
                     return response
 
                 if 400 <= response.status_code < 500:
-                    logger.error("[FATAL] Client error, not retrying", extra={"url": url, "status": response.status_code, "attempt": attempt, "response_preview": response.text[:500]})
+                    logger.error(f"[FATAL] Client error, not retrying: url={url}, status={response.status_code}, attempt={attempt}, response_preview={response.text[:500]}")
                     break
 
-                logger.warning("[RETRY] Server error, will retry", extra={"url": url, "status": response.status_code, "attempt": attempt, "max_retries": self.max_retries})
+                logger.warning(f"[RETRY] Server error, will retry: url={url}, status={response.status_code}, attempt={attempt}, max_retries={self.max_retries}")
 
             except requests.exceptions.Timeout:
-                logger.warning("[TIMEOUT] Request timed out", extra={"url": url, "attempt": attempt, "max_retries": self.max_retries, "timeout": f"{self.timeout}s"})
+                logger.warning(f"[TIMEOUT] Request timed out: url={url}, attempt={attempt}, max_retries={self.max_retries}, timeout={self.timeout}s")
                 tm.sleep(attempt * 2)
 
             except requests.exceptions.ConnectionError as e:
-                logger.warning("[CONNECTION_ERROR] Connection failed", extra={"url": url, "attempt": attempt, "max_retries": self.max_retries, "error": str(e)[:200]})
+                logger.warning(f"[CONNECTION_ERROR] Connection failed: url={url}, attempt={attempt}, max_retries={self.max_retries}, error={str(e)[:200]}")
                 tm.sleep(attempt * 2)
 
             except requests.exceptions.RequestException as e:
-                logger.warning("[REQUEST_ERROR] Request failed", extra={"url": url, "attempt": attempt, "max_retries": self.max_retries, "error": str(e)[:200]})
+                logger.warning(f"[REQUEST_ERROR] Request failed: url={url}, attempt={attempt}, max_retries={self.max_retries}, error={str(e)[:200]}")
                 tm.sleep(attempt * 2)
 
-        logger.error("[EXHAUSTED] All retry attempts failed", extra={"url": url, "max_retries": self.max_retries})
+        logger.error(f"[EXHAUSTED] All retry attempts failed: url={url}, max_retries={self.max_retries}")
         return None
 
     def _normalize_response(self, response: requests.Response, context: dict):
         """Normalize Zerodha API response to standard candle format."""
         instrument_token = context.get("instrument_token", "unknown")
-        logger.debug("Normalizing Zerodha response", extra={"instrument_token": instrument_token, "status_code": response.status_code})
+        logger.debug(f"Normalizing Zerodha response: instrument_token={instrument_token}, status_code={response.status_code}")
 
         if response.status_code != 200:
-            logger.error("Non-200 response", extra={"status_code": response.status_code, "response_preview": response.text[:500]})
+            logger.error(f"Non-200 response: status_code={response.status_code}, response_preview={response.text[:500]}")
             raise ValueError(f"HTTP {response.status_code}: {response.text[:500]}")
 
         try:
             payload = response.json()
         except json.JSONDecodeError as e:
-            logger.error("Invalid JSON response", extra={"error": str(e)}, exc_info=True)
+            logger.error(f"Invalid JSON response: error={e}")
             raise ValueError(f"Invalid JSON response: {e}") from e
 
         # Zerodha response format: {"status": "success", "data": {"candles": [[timestamp, open, high, low, close, volume], ...]}}
@@ -223,7 +219,7 @@ class ZerodhaAdapter(MarketDataProvider):
 
         candles = data.get("candles", [])
         if not candles:
-            logger.debug("No candles returned", extra={"instrument_token": instrument_token})
+            logger.debug(f"No candles returned: instrument_token={instrument_token}")
             return None
 
         # Each candle: [timestamp, open, high, low, close, volume]
@@ -232,7 +228,7 @@ class ZerodhaAdapter(MarketDataProvider):
         validated_candles = []
         for i, candle in enumerate(candles):
             if not isinstance(candle, (list, tuple)) or len(candle) < 6:
-                logger.error("Candle format invalid", extra={"index": i, "candle": candle})
+                logger.error(f"Candle format invalid: index={i}, candle={candle}")
                 raise ValueError(f"Candle {i}: expected at least 6 elements, got {len(candle) if isinstance(candle, (list, tuple)) else 'non-array'}")
 
             try:
@@ -242,7 +238,7 @@ class ZerodhaAdapter(MarketDataProvider):
                     dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
                 else:
                     dt = datetime.fromtimestamp(ts)
-                
+
                 validated_candle = [
                     symbol_asset_type,
                     name,
@@ -257,8 +253,8 @@ class ZerodhaAdapter(MarketDataProvider):
                 ]
                 validated_candles.append(validated_candle)
             except (ValueError, TypeError, IndexError) as e:
-                logger.error("Error parsing candle", extra={"index": i, "candle": candle, "error": str(e)})
+                logger.error(f"Error parsing candle: index={i}, candle={candle}, error={e}")
                 raise ValueError(f"Candle {i}: {e}") from e
 
-        logger.debug("Normalized Zerodha candles", extra={"instrument_token": instrument_token, "candle_count": len(validated_candles)})
+        logger.debug(f"Normalized Zerodha candles: instrument_token={instrument_token}, candle_count={len(validated_candles)}")
         return validated_candles

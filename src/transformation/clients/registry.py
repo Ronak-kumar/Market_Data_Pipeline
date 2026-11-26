@@ -1,3 +1,0 @@
-from shared.utils import Registry
-
-transformer_registry = Registry()

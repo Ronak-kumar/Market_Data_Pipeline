@@ -9,3 +9,4 @@ tqdm>=4.66,<5
 boto3[crt]==1.43.83
 clickhouse-driver==0.2.9
 psycopg2-binary==2.9.9
+Jinja2==3.1.6

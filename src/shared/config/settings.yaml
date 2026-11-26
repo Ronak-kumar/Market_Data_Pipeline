@@ -9,32 +9,21 @@ extractor_settings:
   interval: 1
   max_retries: 3
   expiry_duration: 3
-  start_date: '2026-10-29'
-  end_date: '2026-10-29'
+  start_date: '2026-11-23'
+  end_date: '2026-11-23'
 ingestion_settings:
   enabled: true
   target: clickhouse
   batch_size: 10000
   create_tables: true
+  segment_table_mapping:
+    BSE_INDEX_EQUITY: ''
+    BSE_FO_FNO: ''
+    MCX_FO_FNO: ''
+    NSE_INDEX_EQUITY: ''
+    BSE_EQ_EQUITY: ''
 cloud_settings:
   client: aws
   push_to_cloud: true
   storage_name: marketdata-pipeline
   destination_folder: market_data_storage
-broker_configuration:
-  upstox:
-    processable_segments:
-    - MCX_FO
-    - '# BCD_FO'
-    - '# BSE_EQ'
-    - '# NSE_INDEX'
-    - '# GLOBAL_INDEX'
-    - '# NSE_EQ'
-    - BSE_INDEX
-    - BSE_FO
-    - '# NCD_FO'
-    - '# GLOBAL_INDICATOR'
-    - NSE_COM
-    - '# NSE_FO'
-    session_bounds: {}
-    symbol_name_mapping: {}

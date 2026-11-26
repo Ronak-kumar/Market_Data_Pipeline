@@ -3,13 +3,14 @@ import requests
 from shared.utils import unzipper
 import json
 from shared.observability import get_logger
-from extraction.clients.registry import client_registry
+from extraction.clients import client_registry
 from pathlib import Path
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 logger = get_logger(__name__)
 
+ACCESS_TOKEN_PATH = Path("src/shared/config/access_token.json")
 
 @client_registry.register("upstox")
 class UpstoxAdapter(MarketDataProvider):
@@ -19,31 +20,26 @@ class UpstoxAdapter(MarketDataProvider):
     EXPIRED_HISTORICAL_URL = "https://api.upstox.com/v2/expired-instruments/historical-candle/{instrument_key}/{interval}minute/{end_date}/{start_date}"
 
     def _load_token(self) -> None:
-        logger.debug("Loading access token")
-        access_token_path = Path(__file__).parents[2] / "access_token" / "upstox.json"
-        if not access_token_path.exists():
-            logger.error("Access token file not found", extra={"path": str(access_token_path)})
-            raise ValueError("Access token file not found")
-
         try:
-            with access_token_path.open("r", encoding="utf-8") as file:
-                data = json.load(file)
+            # read_text() reads the whole file in one go, closing it automatically
+            data = json.loads(ACCESS_TOKEN_PATH.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            logger.error(f"Access token file not found: path={ACCESS_TOKEN_PATH}")
+            raise ValueError("Access token file not found")
         except json.JSONDecodeError as e:
-            logger.error("Failed to parse token file", extra={"path": str(access_token_path), "error": str(e)})
+            logger.error(f"Failed to parse token file: path={ACCESS_TOKEN_PATH}, error={e}")
             raise
 
         token = data.get("access_token")
-
-        if not token or token == "":
-            logger.error("Access token not found in token file", extra={"path": str(access_token_path)})
+        if not token:
+            logger.error(f"Access token not found in token file: path={ACCESS_TOKEN_PATH}")
             raise ValueError("Access token not found in token file")
 
-        headers = {
+        self.HEADERS = {
             "Content-Type": "application/json",
             "Accept": "application/json",
             "Authorization": f"Bearer {token}",
         }
-        self.HEADERS = headers
         logger.debug("Access token loaded successfully")
 
     def _fetch_master_instrument(self):
@@ -51,18 +47,19 @@ class UpstoxAdapter(MarketDataProvider):
         logger.info("Fetching master instrument list")
         self._load_token()
         try:
-            logger.debug("Making request to master URL", extra={"url": self.MASTER_URL})
+            logger.debug(f"Making request to master URL: url={self.MASTER_URL}")
             response = self.session_client.get(self.MASTER_URL, timeout=self.timeout)
             response.raise_for_status()
-            logger.debug("Master instrument response received", extra={"status_code": response.status_code, "size_bytes": len(response.content)})
+            logger.debug(f"Master instrument response received: status_code={response.status_code}, size_bytes={len(response.content)}")
             data = unzipper(response)
-            logger.info("Master instrument fetched and decompressed", extra={"instrument_count": len(data) if isinstance(data, list) else "unknown"})
+            instrument_count = len(data) if isinstance(data, list) else "unknown"
+            logger.info(f"Master instrument fetched and decompressed: instrument_count={instrument_count}")
             return data
         except requests.RequestException as e:
-            logger.error("Error fetching master instrument URL", extra={"error": str(e), "url": self.MASTER_URL}, exc_info=True)
+            logger.error(f"Error fetching master instrument URL: error={e}, url={self.MASTER_URL}")
             raise
         except (OSError, json.JSONDecodeError) as e:
-            logger.error("Error decompressing or decoding JSON", extra={"error": str(e)}, exc_info=True)
+            logger.error(f"Error decompressing or decoding JSON: error={e}")
             raise
 
     def fetch_instrument(self, row: dict, variation: str, date: str, interval: int):
@@ -95,30 +92,30 @@ class UpstoxAdapter(MarketDataProvider):
     def fetch_instrument_intraday(self, context: dict, interval: int):
         instrument_key = context["instrument_key"]
         url = self.INTRADAY_URL.format(instrument_key=instrument_key, interval=interval)
-        logger.debug("Fetching intraday instrument", extra={"instrument_key": instrument_key, "interval": interval, "url": url})
+        logger.debug(f"Fetching intraday instrument: instrument_key={instrument_key}, interval={interval}, url={url}")
         response = self._retry_policy(url=url)
         if response is None:
-            logger.warning("All retry attempts exhausted for intraday fetch", extra={"instrument_key": instrument_key})
+            logger.warning(f"All retry attempts exhausted for intraday fetch: instrument_key={instrument_key}")
             return None
         return self._normalize_response(response=response, context=context)
 
     def fetch_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
         instrument_key = context["instrument_key"]
         url = self.HISTORICAL_URL.format(instrument_key=instrument_key, interval=interval, end_date=end_date, start_date=start_date)
-        logger.debug("Fetching historical instrument", extra={"instrument_key": instrument_key, "interval": interval, "start_date": start_date, "end_date": end_date, "url": url})
+        logger.debug(f"Fetching historical instrument: instrument_key={instrument_key}, interval={interval}, start_date={start_date}, end_date={end_date}, url={url}")
         response = self._retry_policy(url=url)
         if response is None:
-            logger.warning("All retry attempts exhausted for historical fetch", extra={"instrument_key": instrument_key})
+            logger.warning(f"All retry attempts exhausted for historical fetch: instrument_key={instrument_key}")
             return None
         return self._normalize_response(response=response, context=context)
 
     def fetch_expired_historical_instrument(self, context: dict, interval: int, start_date: str, end_date: str):
         instrument_key = context["instrument_key"]
         url = self.EXPIRED_HISTORICAL_URL.format(instrument_key=instrument_key, interval=interval, end_date=end_date, start_date=start_date)
-        logger.debug("Fetching expired historical instrument", extra={"instrument_key": instrument_key, "interval": interval, "start_date": start_date, "end_date": end_date, "url": url})
+        logger.debug(f"Fetching expired historical instrument: instrument_key={instrument_key}, interval={interval}, start_date={start_date}, end_date={end_date}, url={url}")
         response = self._retry_policy(url=url)
         if response is None:
-            logger.warning("All retry attempts exhausted for expired historical fetch", extra={"instrument_key": instrument_key})
+            logger.warning(f"All retry attempts exhausted for expired historical fetch: instrument_key={instrument_key}")
             return None
         return self._normalize_response(response=response, context=context)
 
@@ -131,62 +128,62 @@ class UpstoxAdapter(MarketDataProvider):
         instrument_key = context.get("instrument_key", "unknown")
         trading_symbol = context.get("trading_symbol", "")
 
-        logger.debug("Normalizing response", extra={"instrument_key": instrument_key, "status_code": response.status_code})
+        logger.debug(f"Normalizing response: instrument_key={instrument_key}, status_code={response.status_code}")
 
         # 1. Validate HTTP response
         if response.status_code != 200:
-            logger.error("Non-200 response", extra={"status_code": response.status_code, "response_preview": response.text[:500]})
+            logger.error(f"Non-200 response: status_code={response.status_code}, response_preview={response.text[:500]}")
             raise ValueError(f"HTTP {response.status_code}: {response.text[:500]}")
 
         # 2. Parse JSON strictly
         try:
             payload = response.json()
         except json.JSONDecodeError as e:
-            logger.error("Invalid JSON response", extra={"error": str(e)}, exc_info=True)
+            logger.error(f"Invalid JSON response: error={e}")
             raise ValueError(f"Invalid JSON response: {e}") from e
 
         # 3. Validate top-level structure
         if not isinstance(payload, dict):
-            logger.error("Expected dict at root", extra={"actual_type": type(payload).__name__})
+            logger.error(f"Expected dict at root: actual_type={type(payload).__name__}")
             raise ValueError(f"Expected dict at root, got {type(payload).__name__}")
 
         if "data" not in payload:
-            logger.error("Missing 'data' key in response", extra={"keys": list(payload.keys())})
+            logger.error(f"Missing 'data' key in response: keys={list(payload.keys())}")
             raise ValueError(f"Missing 'data' key in response. Keys: {list(payload.keys())}")
 
         data = payload["data"]
         if not isinstance(data, dict):
-            logger.error("Expected 'data' to be dict", extra={"actual_type": type(data).__name__})
+            logger.error(f"Expected 'data' to be dict: actual_type={type(data).__name__}")
             raise ValueError(f"Expected 'data' to be dict, got {type(data).__name__}")
 
         # 4. Validate candles array
         if "candles" not in data:
-            logger.error("Missing 'candles' key in data", extra={"keys": list(data.keys())})
+            logger.error(f"Missing 'candles' key in data: keys={list(data.keys())}")
             raise ValueError(f"Missing 'candles' key in data. Keys: {list(data.keys())}")
 
         candles = data["candles"]
         if not isinstance(candles, list):
-            logger.error("Expected 'candles' to be list", extra={"actual_type": type(candles).__name__})
+            logger.error(f"Expected 'candles' to be list: actual_type={type(candles).__name__}")
             raise ValueError(f"Expected 'candles' to be list, got {type(candles).__name__}")
 
         if not candles:
-            logger.debug("No candles returned", extra={"instrument_key": instrument_key})
+            logger.debug(f"No candles returned: instrument_key={instrument_key}")
             return None
 
         # 5. Validate each candle structure - Upstox format: [timestamp, open, high, low, close, volume, oi]
         validated_candles = []
         for i, candle in enumerate(candles):
             if not isinstance(candle, (list, tuple)):
-                logger.error("Candle format invalid", extra={"index": i, "actual_type": type(candle).__name__})
+                logger.error(f"Candle format invalid: index={i}, actual_type={type(candle).__name__}")
                 raise ValueError(f"Candle {i}: expected list/tuple, got {type(candle).__name__}")
             if len(candle) < 6:
-                logger.error("Candle has insufficient elements", extra={"index": i, "length": len(candle), "candle": candle})
+                logger.error(f"Candle has insufficient elements: index={i}, length={len(candle)}, candle={candle}")
                 raise ValueError(f"Candle {i}: expected at least 6 elements (ts,o,h,l,c,v), got {len(candle)}: {candle}")
 
             validated_candle = self.__normalize_candles(candle=candle, context=context)
             validated_candles.append(validated_candle)
 
-        logger.debug("Normalized candles", extra={"instrument_key": instrument_key, "trading_symbol": trading_symbol, "candle_count": len(validated_candles)})
+        logger.debug(f"Normalized candles: instrument_key={instrument_key}, trading_symbol={trading_symbol}, candle_count={len(validated_candles)}")
         return validated_candles
 
     def __normalize_candles(self, candle, context) -> list:
@@ -197,7 +194,7 @@ class UpstoxAdapter(MarketDataProvider):
         dt = datetime.fromisoformat(candle[0])
 
         if not isinstance(ts, str):
-            logger.error("Candle timestamp not string", extra={"Trading_Symbol": name, "actual_type": type(ts).__name__})
+            logger.error(f"Candle timestamp not string: Trading_Symbol={name}, actual_type={type(ts).__name__}")
             raise ValueError(f"Candle {name}: timestamp must be string, got {type(ts).__name__}")
 
         # Validate numeric fields
@@ -219,7 +216,7 @@ class UpstoxAdapter(MarketDataProvider):
             else:
                 validated_candle.append(0.0)
         except (ValueError, TypeError) as e:
-            logger.error("Non-numeric OHLCV in candle", extra={"Trading_Symbol": name, "candle": candle, "error": str(e)})
+            logger.error(f"Non-numeric OHLCV in candle: Trading_Symbol={name}, candle={candle}, error={e}")
             raise ValueError(f"Trading_Symbol {name}: non-numeric OHLCV: {candle}") from e
 
         return validated_candle

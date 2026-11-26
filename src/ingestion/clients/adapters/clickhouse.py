@@ -1,12 +1,17 @@
 from ingestion.clients import DataIngestor, ingestion_registry, IngestionResult
 from shared.observability import get_logger
-from shared.config import app_settings
+from shared.config import get_application_settings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
 import polars as pl
 
 logger = get_logger(__name__)
+
+
+def _get_settings():
+    """Load settings fresh from disk so UI changes take effect immediately."""
+    return get_application_settings()
 
 
 # Lazy import clickhouse-driver
@@ -23,11 +28,11 @@ except ImportError:
 @ingestion_registry.register("clickhouse")
 class ClickHouseIngestor(DataIngestor):
     """ClickHouse data ingestor with connection pooling and bulk inserts."""
-    
+   
     def __init__(self, config: Optional[Any] = None):
         # Use config from settings if not provided
         if config is None:
-            config = app_settings.ingestion_settings.clickhouse
+            config = _get_settings().clickhouse
         super().__init__(config)
         self._client: Optional[Client] = None
         self._schema_dir = Path("src/ingestion/schemas")

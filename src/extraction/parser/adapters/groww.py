@@ -13,15 +13,17 @@ class InstrumentValidationError(ValueError):
 class GrowwInstrumentParser(InstrumentParser):
     AVAILABLE_SEGMENTS = ['NSE_EQ', 'BSE_FO', 'BSE_INDEX', 'NSE_FO', 'BSE_EQ', 'MCX_FO', 'NSE_INDEX']
 
-    def parse(self, data, ) -> pl.DataFrame:
-        logger.info("Parsing Groww instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})
+    def parse(self, data) -> pl.DataFrame:
+        input_type = type(data).__name__
+        input_length = len(data) if hasattr(data, '__len__') else "unknown"
+        logger.info(f"Parsing Groww instrument data: input_type={input_type}, input_length={input_length}")
         df = pl.DataFrame(data)
         result = self._normalize(df)
-        logger.info("Groww instrument parsing complete", extra={"rows": result.height})
+        logger.info(f"Groww instrument parsing complete: rows={result.height}")
         return result
 
     def _normalize(self, df: pl.DataFrame) -> pl.DataFrame:
-        logger.debug("Normalizing instrument schema", extra={"input_columns": df.columns, "input_rows": df.height})
+        logger.debug(f"Normalizing instrument schema: input_columns={df.columns}, input_rows={df.height}")
 
         ## Segment Modification ##
         df = df.with_columns([(pl.col("segment")).alias("base_segment")])
@@ -31,14 +33,14 @@ class GrowwInstrumentParser(InstrumentParser):
         df = self._validate_symbols(df)
 
         result = df
-        logger.debug("Schema normalization complete", extra={"output_columns": result.columns, "output_rows": result.height})
+        logger.debug(f"Schema normalization complete: output_columns={result.columns}, output_rows={result.height}")
         return result
 
     def _create_segment_field(self, df: pl.DataFrame) -> pl.DataFrame:
         """Create standardized segment field from exchange + segment_code."""
         # Dhan segment codes: E=Equity, D=Derivatives, I=Index, C=Currency, M=Commodity
         # Exchange: NSE, BSE, MCX
-        
+
         segment_expr = (
             pl.when(pl.col("exchange") == "NSE")
             .then(
@@ -88,11 +90,11 @@ class GrowwInstrumentParser(InstrumentParser):
             .otherwise(pl.lit("None"))
         )
 
-        
         return df.with_columns(segment_expr.alias("segment"))
+
     def _validate_symbols(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Extracts components using strict regex patterns and reassembles them 
+        Extracts components using strict regex patterns and reassembles them
         to create the symbol_name (excluding the exchange).
         """
         EQUITY_PATTERN = r"^(?P<exchange>NSE|BSE)-(?P<underlying>[A-Za-z0-9& _-]+)$"
@@ -106,13 +108,13 @@ class GrowwInstrumentParser(InstrumentParser):
             symbol_name=(
                 pl.when(pl.col("groww_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.col("groww_symbol").str.replace(OPTION_PATTERN, "$2-$3-$4-$5"))
-                
+
                 .when(pl.col("groww_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.col("groww_symbol").str.replace(FUTURE_PATTERN, "$2-$3-FUT"))
-                
+
                 .when(pl.col("groww_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.col("groww_symbol").str.replace(EQUITY_PATTERN, "$2"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             ).str.to_uppercase(),
 
@@ -122,13 +124,13 @@ class GrowwInstrumentParser(InstrumentParser):
             symbol_asset_class=(
                 pl.when(pl.col("groww_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("groww_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("groww_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.lit("CASH"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             )
 
@@ -144,10 +146,10 @@ class GrowwInstrumentParser(InstrumentParser):
 
         # THE SECURITY LAYER: Catch the broken schemas before they are dropped
         invalid_rows = temp_df.filter(pl.col("symbol_name").is_null())
-    
+
         if not invalid_rows.is_empty():
             bad_samples = invalid_rows["groww_symbol"].head(5).to_list()
-            logger.warning(f"Invalid rows found in the master insrument symbol processing, lengh of invalid rows are {len(invalid_rows)}")
+            logger.warning(f"Invalid rows found in master instrument symbol processing, length={len(invalid_rows)}")
             if len(invalid_rows) > 100:
                 raise InstrumentValidationError(
                     f"CRITICAL: Schema mutation detected! {invalid_rows.height} symbols failed regex validation.\n"

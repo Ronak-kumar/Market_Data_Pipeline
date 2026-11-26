@@ -15,23 +15,25 @@ class UpstoxInstrumentParser(InstrumentParser):
     AVAILABLE_SEGMENTS = ['MCX_FO', 'BCD_FO', 'BSE_EQ', 'NSE_INDEX', 'GLOBAL_INDEX', 'NSE_EQ', 'BSE_INDEX', 'BSE_FO', 'NCD_FO', 'GLOBAL_INDICATOR', 'NSE_COM', 'NSE_FO']
 
     def parse(self, data) -> pl.DataFrame:
-        logger.info("Parsing Upstox instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})
+        input_type = type(data).__name__
+        input_length = len(data) if hasattr(data, '__len__') else "unknown"
+        logger.info(f"Parsing Upstox instrument data: input_type={input_type}, input_length={input_length}")
         df = pl.DataFrame(data)
         result = self._normalize(df)
-        logger.info("Upstox instrument parsing complete", extra={"rows": result.height})
+        logger.info(f"Upstox instrument parsing complete: rows={result.height}")
         return result
 
     def _normalize(self, df: pl.DataFrame) -> pl.DataFrame:
-        logger.debug("Normalizing instrument schema", extra={"input_columns": df.columns, "input_rows": df.height})
+        logger.debug(f"Normalizing instrument schema: input_columns={df.columns}, input_rows={df.height}")
         df = self._validate_symbols(df)
 
         result = df
-        logger.debug("Schema normalization complete", extra={"output_columns": result.columns, "output_rows": result.height})
+        logger.debug(f"Schema normalization complete: output_columns={result.columns}, output_rows={result.height}")
         return result
 
     def _validate_symbols(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Extracts components using strict regex patterns and reassembles them 
+        Extracts components using strict regex patterns and reassembles them
         to create the symbol_name (excluding the exchange).
         """
         EQUITY_PATTERN = r"^(?P<underlying>[A-Za-z0-9& _-]+)$"
@@ -49,13 +51,13 @@ class UpstoxInstrumentParser(InstrumentParser):
             symbol_name=(
                 pl.when(pl.col("trading_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(OPTION_PATTERN, "$1-$4-$2-$3").str.replace_all(" ", ""))
-                
+
                 .when(pl.col("trading_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(FUTURE_PATTERN, "$1-$2-FUT").str.replace_all(" ", ""))
-                
+
                 .when(pl.col("trading_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(EQUITY_PATTERN, "$1"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             ).str.to_uppercase(),
 
@@ -65,16 +67,15 @@ class UpstoxInstrumentParser(InstrumentParser):
             symbol_asset_class=(
                 pl.when(pl.col("trading_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("trading_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("trading_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.lit("CASH"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             )
-
         ).with_columns(
             # -------------------------
             # 3. Expiry fetch (from symbol_name)
@@ -87,10 +88,10 @@ class UpstoxInstrumentParser(InstrumentParser):
 
         # THE SECURITY LAYER: Catch the broken schemas before they are dropped
         invalid_rows = temp_df.filter(pl.col("symbol_name").is_null())
-    
+
         if not invalid_rows.is_empty():
             bad_samples = invalid_rows["trading_symbol"].head(5).to_list()
-            logger.warning(f"Invalid rows found in the master insrument symbol processing, lengh of invalid rows are {len(invalid_rows)}")
+            logger.warning(f"Invalid rows found in master instrument symbol processing, length={len(invalid_rows)}")
             if len(invalid_rows) > 100:
                 raise InstrumentValidationError(
                     f"CRITICAL: Schema mutation detected! {invalid_rows.height} symbols failed regex validation.\n"

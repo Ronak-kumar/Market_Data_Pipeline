@@ -1,7 +1,7 @@
 from ingestion.clients.adapters.postgresql import PostgreSQLIngestor
 from ingestion.clients import ingestion_registry, IngestionResult
 from shared.observability import get_logger
-from shared.config import app_settings
+from shared.config import get_application_settings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
@@ -9,13 +9,18 @@ import time
 logger = get_logger(__name__)
 
 
+def _get_settings():
+    """Load settings fresh from disk so UI changes take effect immediately."""
+    return get_application_settings()
+
+
 @ingestion_registry.register("timescaledb")
 class TimescaleDBIngestor(PostgreSQLIngestor):
     """TimescaleDB data ingestor - inherits PostgreSQL flow, adds hypertable support."""
-    
+   
     def __init__(self, config: Optional[Any] = None):
         if config is None:
-            config = app_settings.ingestion_settings.timescaledb
+            config = _get_settings().timescaledb
         super().__init__(config)
         self._schema_dir = Path("src/ingestion/schemas")
 

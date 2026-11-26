@@ -1,50 +1,11 @@
-# shared/logging/formatter.py
+"""Clean, readable log formatters for the market data pipeline."""
 
-import json
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime
 
 
-class JsonFormatter(logging.Formatter):
-    """Convert log records into JSON."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        log_data: dict[str, Any] = {
-            "timestamp": datetime.now().isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-            "process_id": record.process,
-            "thread_name": record.threadName,
-            "message": record.getMessage(),
-        }
-
-        exception_data = getattr(
-            record,
-            "exception_data",
-            None,
-        )
-
-        if exception_data:
-            log_data["exception"] = exception_data
-
-        if record.exc_info:
-            log_data["traceback"] = self.formatException(
-                record.exc_info
-            )
-
-        return json.dumps(
-            log_data,
-            ensure_ascii=False,
-            default=str,
-        )
-
-
-class TextFormatter(logging.Formatter):
-    """Format logs as readable text."""
+class CleanTextFormatter(logging.Formatter):
+    """Format logs as clean, readable text with timestamp, level, logger, location, and message."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -57,3 +18,32 @@ class TextFormatter(logging.Formatter):
             ),
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format the log record, handling exceptions cleanly."""
+        # Format the base message
+        message = super().format(record)
+
+        # Append exception info if present
+        if record.exc_info:
+            exc_text = self.formatException(record.exc_info)
+            message = f"{message}\n{exc_text}"
+
+        return message
+
+
+class CompactTextFormatter(logging.Formatter):
+    """Compact single-line formatter for console output."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            fmt="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+            datefmt="%H:%M:%S",
+        )
+
+    def format(self, record: logging.LogRecord) -> str:
+        message = super().format(record)
+        if record.exc_info:
+            exc_text = self.formatException(record.exc_info)
+            message = f"{message}\n{exc_text}"
+        return message
