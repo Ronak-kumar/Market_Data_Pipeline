@@ -122,7 +122,7 @@ class DailyDataExtractor:
             logger.error(f"Failed to parse master instrument for {client}: {e}")
             raise
 
-        master_instrument = self._master_instrument_cache()
+        # master_instrument = self._master_instrument_cache()
         return master_instrument
 
     def _day_process(self, date, variation) -> dict:

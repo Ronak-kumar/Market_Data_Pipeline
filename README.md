@@ -23,55 +23,68 @@
 | **Orchestration** | ✅ Unified pipeline (`src/pipeline/main_orchestrator.py`) |
 | **Web UI** | ✅ FastAPI config editor + pipeline runner with live SSE logs (`src/api/`) |
 | **Config persistence** | ✅ UI writes `settings.yaml`, `broker_config.yaml`, `access_token.json`, `.env` |
-| **Multi-broker** | ❌ Not implemented (Groww/Dhan/Zerodha exist only as config stubs) |
 | **Gold layer** | ❌ Planned only |
 
 ---
 
 ## 🏗 System Architecture
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                      FastAPI Web UI  (src/api/)                 │
-│  • Config editor: settings.yaml / broker_config.yaml            │
-│  • .env writer (ClickHouse / PostgreSQL / TimescaleDB / S3)     │
-│  • Access token writer (api_key + access_token)                 │
-│  • Pipeline runner: extraction → cloud → transform → ingest     │
-│  • Live SSE log streaming during phase runs                     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  settings.yaml  │  broker_config.yaml  │  .env  │ access_token.json│
-│  (source of truth for client, interval, dates, targets)         │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-          ┌───────────────────┼───────────────────┐
-          ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  Extraction   │   │ Transformation│   │  Ingestion    │
-│  (Bronze)     │   │   (Silver)    │   │   (DB)        │
-│               │   │               │   │               │
-│ Upstox API    │   │ Equity/F&O    │   │ ClickHouse    │
-│ master inst.  │   │ segregation   │   │ PostgreSQL    │
-│ per-symbol    │   │ range filling │   │ TimescaleDB   │
-│ candles       │   │               │   │               │
-│ staged Parquet│   │ Parquet       │   │ date check +  │
-│ + manifest    │   │               │   │ rollback      │
-└───────────────┘   └───────────────┘   └───────────────┘
-          │                   │                   │
-          ▼                   ▼                   ▼
-   src/cache/upstox/   src/cache/upstox/      Database tables
-   Bronze/{date}/      Silver/{date}/
-   {segment}.parquet   {segment}_{EQUITY|FNO}.parquet
-          │                   │                   │
-          └───────────────────┴───────────────────┘
-                              ▼
-                     S3 (optional, via boto3)
-                     Bronze & Silver push
+```mermaid
+flowchart TB
+    subgraph Extraction["📥 Extraction Layer"]
+        A1[Upstox API]:::api
+        A2[Groww API]:::api
+        A3[Dhan API]:::api
+        A4[Zerodha Kite]:::api
+        
+        B[Adapter Registry]:::core
+        C[Staged Parquet Writer]:::core
+        D[Rate Limiter]:::core
+        E[Retry Policy]:::core
+    end
+    
+    subgraph Transformation["🔄 Transformation Layer"]
+        F[Bronze → Silver]:::transform
+        G[Schema Validation]:::transform
+        H[F&O Enrichment]:::transform
+    end
+    
+    subgraph Storage["☁️ Storage Layer"]
+        I[(S3 - Bronze)]:::storage
+        J[(S3 - Silver)]:::storage
+    end
+    
+    subgraph Ingestion["📊 Ingestion Layer"]
+        L[ClickHouse]:::db
+        M[PostgreSQL]:::db
+        N[TimescaleDB]:::db
+    end
+    
+    A1 --> B
+    A2 --> B
+    A3 --> B
+    A4 --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> L
+    J --> M
+    J--> N
+    
+    classDef api fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    classDef core fill:#064e3b,stroke:#10b981,color:#fff
+    classDef transform fill:#7c2d12,stroke:#f97316,color:#fff
+    classDef storage fill:#422006,stroke:#f59e0b,color:#fff
+    classDef db fill:#312e81,stroke:#8b5cf6,color:#fff
 ```
 
-Data flow:
+
+## Data flow:
 
 ```
 Upstox API (assets.upstox.com + api.upstox.com)
