@@ -3,7 +3,7 @@ logger:
   name: "market_data_pipeline"
   propagate: false
 console:
-  enabled: false
+  enabled: true
   level: "INFO"
 file:
   enabled: true
@@ -15,28 +15,3 @@ file:
     when: "midnight"
     interval: 1
     backup_count: 30
-format:
-  type: "json"
-  text: "%(asctime)s | %(levelname)-8s | %(name)s | %(filename)s:%(lineno)d | %(message)s"
-  json:
-    timestamp: "timestamp"
-    level: "level"
-    logger: "logger"
-    module: "module"
-    function: "function"
-    line: "line"
-    process: "process_id"
-    thread: "thread_name"
-    message: "message"
-request_logging:
-  enabled: true
-  log_request_body: false
-  log_response_body: false
-  log_headers: false
-performance:
-  enabled: true
-  slow_request_threshold_ms: 1000
-exception_logging:
-  include_traceback: true
-access_log:
-  enabled: false

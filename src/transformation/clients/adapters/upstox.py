@@ -60,7 +60,8 @@ class UpstoxTransformationAdapter(DataTransformer):
 
     def equity_transformation(self, df: DataFrame) -> DataFrame:
         logger.info("Starting equity transformation", extra={"input_rows": df.height})
-        spot_mapping = app_settings.broker_configuration.symbol_name_mapping
+        client = app_settings.extractor_settings.client
+        spot_mapping = app_settings.broker_configuration.get(client, {}).symbol_name_mapping
         ##############################
         df = df.rename({"Ticker": "Symbol"})
         # Apply mapping to DataFrame

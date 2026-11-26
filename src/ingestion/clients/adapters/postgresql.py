@@ -1,11 +1,16 @@
 from ingestion.clients import DataIngestor, ingestion_registry, IngestionResult
 from shared.observability import get_logger
-from shared.config import app_settings
+from shared.config import get_application_settings
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import time
 
 logger = get_logger(__name__)
+
+
+def _get_settings():
+    """Load settings fresh from disk so UI changes take effect immediately."""
+    return get_application_settings()
 
 
 # Lazy import psycopg2
@@ -24,10 +29,10 @@ except ImportError:
 @ingestion_registry.register("postgresql")
 class PostgreSQLIngestor(DataIngestor):
     """PostgreSQL data ingestor with same flow as ClickHouse: date check + rollback."""
-    
+   
     def __init__(self, config: Optional[Any] = None):
         if config is None:
-            config = app_settings.ingestion_settings.postgresql
+            config = _get_settings().postgresql
         super().__init__(config)
         self._pool: Optional[pool.ThreadedConnectionPool] = None
         self._schema_dir = Path("src/ingestion/schemas")

@@ -11,13 +11,11 @@ logger = get_logger(__name__)
 
 class DataTransformer:
 
-    def base_transformation(self, filepath: Path, segment: str) -> DataFrame:
-        logger.info("Starting base transformation", extra={"filepath": str(filepath), "segment": segment})
+    def base_transformation(self, df: DataFrame, segment: str) -> DataFrame:
         validator = DefaultValidator()
         converter = DefaultConverter()
 
-        df = pl.read_parquet(filepath)
-        logger.debug("Read parquet file", extra={"filepath": str(filepath), "rows": df.height, "columns": df.columns})
+        logger.debug("Starting base transformation", extra={"segment": segment})
 
         EXPECTED_SCHEMA = RAW_PARQUET_SCHEMA
 

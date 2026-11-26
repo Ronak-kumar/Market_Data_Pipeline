@@ -11,3 +11,6 @@ class DefaultCloud(ABC):
 
     def get_files(self, filepath: Path, bucket_name: str, destination_prefix: str) -> Any:
         pass
+
+    def push_to_cloud(self, filepath: Path, bucket_name: str, destination_prefix: str) -> None:
+        pass

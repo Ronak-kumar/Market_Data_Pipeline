@@ -1,13 +1,13 @@
 import importlib
 import pkgutil
 from types import ModuleType
-import logging
+from shared.observability import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def discover_modules(package: ModuleType, *, exclude: set[str] | None = None,) -> None:
-    logger.debug("Starting module discovery", extra={"package": package.__name__})
+    logger.debug(f"Starting module discovery: package={package.__name__}")
     exclude = exclude or set()
     discovered = []
 
@@ -23,4 +23,4 @@ def discover_modules(package: ModuleType, *, exclude: set[str] | None = None,) -
         importlib.import_module(f"{package.__name__}.{module_name}")
         discovered.append(module_name)
 
-    logger.info("Module discovery completed", extra={"package": package.__name__, "discovered_modules": discovered})
+    logger.info(f"Module discovery completed: package={package.__name__}, discovered_modules={discovered}")

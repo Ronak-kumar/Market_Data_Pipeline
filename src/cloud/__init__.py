@@ -1,5 +1,5 @@
 from .base import DefaultCloud
-from .registry import cloud_registry
-from .discovery import cloud_discovery
+from .register_and_discover import cloud_registry, cloud_discovery
+from .main import CloudOrchestrator
 
-__all__ = ["DefaultCloud", "parser_registry", "parser_discovery"]
+__all__ = ["DefaultCloud", "cloud_registry", "cloud_discovery", "CloudOrchestrator"]

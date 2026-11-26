@@ -15,28 +15,30 @@ class ZerodhaInstrumentParser(InstrumentParser):
 
     # Zerodha segments
     AVAILABLE_SEGMENTS = [
-        "NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO", 
+        "NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO",
         "NSE_INDEX", "BSE_INDEX", "MCX_FNO", "NSE_CURRENCY", "BSE_CURRENCY"
     ]
 
     def parse(self, data) -> pl.DataFrame:
-        logger.info("Parsing Zerodha instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})
+        input_type = type(data).__name__
+        input_length = len(data) if hasattr(data, '__len__') else "unknown"
+        logger.info(f"Parsing Zerodha instrument data: input_type={input_type}, input_length={input_length}")
         df = pl.DataFrame(data)
         result = self._normalize(df)
-        logger.info("Zerodha instrument parsing complete", extra={"rows": result.height})
+        logger.info(f"Zerodha instrument parsing complete: rows={result.height}")
         return result
 
     def _normalize(self, df: pl.DataFrame) -> pl.DataFrame:
-        logger.debug("Normalizing Zerodha instrument schema", extra={"input_columns": df.columns, "input_rows": df.height})
-        
+        logger.debug(f"Normalizing Zerodha instrument schema: input_columns={df.columns}, input_rows={df.height}")
+
         # Validate required columns exist
-        required_cols = ["instrument_token", "exchange_token", "tradingsymbol", "name", "expiry", 
+        required_cols = ["instrument_token", "exchange_token", "tradingsymbol", "name", "expiry",
                          "strike", "tick_size", "lot_size", "instrument_type", "segment", "exchange"]
-        
+
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
-            logger.warning("Some expected columns missing from Zerodha data", extra={"missing": missing})
-        
+            logger.warning(f"Some expected columns missing from Zerodha data: missing={missing}")
+
         # Rename columns to match expected schema
         column_mapping = {
             "instrument_token": "instrument_key",
@@ -51,22 +53,22 @@ class ZerodhaInstrumentParser(InstrumentParser):
             "segment": "segment_code",
             "exchange": "exchange",
         }
-        
+
         # Apply renaming for columns that exist
         rename_dict = {k: v for k, v in column_mapping.items() if k in df.columns}
         df = df.rename(rename_dict)
-        
+
         # Create standardized segment field
         df = self._create_segment_field(df)
 
         # Create trading_symbol
         df = self._create_trading_symbol(df)
-        
+
         df = self._validate_symbols(df)
-        
+
         # Create symbol_asset_class
         df = self._create_asset_class(df)
-        
+
         # Parse expiry date
         if "expiry_date" in df.columns:
             df = df.with_columns(
@@ -74,14 +76,14 @@ class ZerodhaInstrumentParser(InstrumentParser):
             )
         else:
             df = df.with_columns(pl.lit(None).cast(pl.Date).alias("symbol_expiry"))
-        
+
         # Ensure instrument_key is string
         df = df.with_columns(pl.col("instrument_key").cast(pl.Utf8))
-        
+
         # Create display_name
         if "display_name" not in df.columns:
             df = df.with_columns(pl.col("symbol_name").alias("display_name"))
-        
+
         # Select and order final columns
         final_cols = [
             "instrument_key", "trading_symbol", "symbol_name", "display_name",
@@ -89,19 +91,19 @@ class ZerodhaInstrumentParser(InstrumentParser):
             "expiry_date", "symbol_expiry", "strike_price", "lot_size", "tick_size",
             "symbol_asset_class"
         ]
-        
+
         # Keep only columns that exist
         final_cols = [c for c in final_cols if c in df.columns]
         df = df.select(final_cols)
-        
-        logger.debug("Zerodha schema normalization complete", extra={"output_columns": df.columns, "output_rows": df.height})
+
+        logger.debug(f"Zerodha schema normalization complete: output_columns={df.columns}, output_rows={df.height}")
         return df
 
     def _create_segment_field(self, df: pl.DataFrame) -> pl.DataFrame:
         """Create standardized segment field from exchange + segment_code + instrument_type."""
         # Zerodha segments: NSE, BSE, NFO, BFO, MCX, CDS, BCD
         # instrument_type: EQ, FUT, CE, PE, etc.
-        
+
         segment_expr = (
             pl.when(pl.col("exchange") == "NSE").then(
                 pl.when(pl.col("instrument_type") == "EQ").then(pl.lit("NSE_EQ"))
@@ -120,7 +122,7 @@ class ZerodhaInstrumentParser(InstrumentParser):
             .when(pl.col("exchange") == "BCD").then(pl.lit("BSE_CURRENCY"))
             .otherwise(pl.lit("NSE_EQ"))
         )
-        
+
         return df.with_columns(segment_expr.alias("segment"))
 
     def _create_trading_symbol(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -135,7 +137,7 @@ class ZerodhaInstrumentParser(InstrumentParser):
             pl.col("symbol_name").alias("symbol_name_base"),
             pl.col("trading_symbol").alias("trading_symbol_base"),)
 
-        df= df.with_columns(pl.when(pl.col("instrument_type").is_in(["EQ"])).then(pl.col("trading_symbol_base")).otherwise(pl.col("symbol_name_base")).alias("symbol_name"))
+        df = df.with_columns(pl.when(pl.col("instrument_type").is_in(["EQ"])).then(pl.col("trading_symbol_base")).otherwise(pl.col("symbol_name_base")).alias("symbol_name"))
 
         ## Normalize expiry_date to format DDMMMYY (e.g., 15JAN24)
         df = df.with_columns(
@@ -183,12 +185,12 @@ class ZerodhaInstrumentParser(InstrumentParser):
             )
             .list.join("-")
         )
-        
+
         return df.with_columns(trading_expr.alias("trading_symbol"))
 
     def _validate_symbols(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Extracts components using strict regex patterns and reassembles them 
+        Extracts components using strict regex patterns and reassembles them
         to create the symbol_name (excluding the exchange).
         """
         EQUITY_PATTERN = r"^(?P<underlying>[A-Za-z0-9& _-]+)$"
@@ -202,13 +204,13 @@ class ZerodhaInstrumentParser(InstrumentParser):
             symbol_name=(
                 pl.when(pl.col("trading_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(OPTION_PATTERN, "$1-$4-$2-$3").str.replace_all(" ", ""))
-                
+
                 .when(pl.col("trading_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(FUTURE_PATTERN, "$1-$2-FUT").str.replace_all(" ", ""))
-                
+
                 .when(pl.col("trading_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(EQUITY_PATTERN, "$1"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             ).str.to_uppercase(),
 
@@ -218,13 +220,13 @@ class ZerodhaInstrumentParser(InstrumentParser):
             symbol_asset_class=(
                 pl.when(pl.col("trading_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("trading_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("trading_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.lit("CASH"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             )
 
@@ -240,10 +242,10 @@ class ZerodhaInstrumentParser(InstrumentParser):
 
         # THE SECURITY LAYER: Catch the broken schemas before they are dropped
         invalid_rows = temp_df.filter(pl.col("symbol_name").is_null())
-    
+
         if not invalid_rows.is_empty():
             bad_samples = invalid_rows["trading_symbol"].head(5).to_list()
-            logger.warning(f"Invalid rows found in the master insrument symbol processing, lengh of invalid rows are {len(invalid_rows)}")
+            logger.warning(f"Invalid rows found in master instrument symbol processing, length={len(invalid_rows)}")
             if len(invalid_rows) > 100:
                 raise InstrumentValidationError(
                     f"CRITICAL: Schema mutation detected! {invalid_rows.height} symbols failed regex validation.\n"
@@ -251,3 +253,12 @@ class ZerodhaInstrumentParser(InstrumentParser):
                 )
 
         return temp_df.drop_nulls(subset=["symbol_name"])
+
+    def _create_asset_class(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Create symbol_asset_class based on instrument_type."""
+        asset_class_expr = (
+            pl.when(pl.col("instrument_type").is_in(["CE", "PE", "FUT"])).then(pl.lit("FO"))
+            .when(pl.col("instrument_type") == "EQ").then(pl.lit("CASH"))
+            .otherwise(pl.lit("UNKNOWN"))
+        )
+        return df.with_columns(asset_class_expr.alias("symbol_asset_class"))

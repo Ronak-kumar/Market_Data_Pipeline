@@ -1,30 +1,29 @@
 # Market Data Pipeline
 
-**Multi-broker, fault-tolerant historical market data extraction platform for Indian equities, derivatives & commodities**
+**Upstox historical market data extraction platform for Indian equities, derivatives & commodities**
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)](https://python.org)
 [![Polars](https://img.shields.io/badge/Polars-1.43+-orange?logo=polars&logoColor=white)](https://pola.rs)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.162+-green?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Code Style](https://img.shields.io/badge/Code%20Style-ruff-black)](https://github.com/astral-sh/ruff)
-[![Type Check](https://img.shields.io/badge/Type%20Check-mypy-blue)](https://mypy-lang.org)
 
-> **Production-grade data engineering** — Built by a fintech backend engineer with 3+ years building low-latency market data pipelines, distributed backtesting engines, and quant research platforms at Finesse Advisory Services.
+> Built by a fintech backend engineer at Finesse Advisory Services. Fetches instruments and historical candles from the Upstox API, writes Bronze (raw) and Silver (transformed) Parquet, and ingests into ClickHouse / PostgreSQL / TimescaleDB with optional S3 push. Includes a FastAPI web UI for editing settings / broker config / `.env` / access tokens and running pipeline phases with live SSE logging.
 
 ---
 
-## 🎯 Project Highlights (Current Checkpoint: `clickhouse ingestion layer`)
+## 🎯 Current State (Checkpoint: `checkpoint`)
 
-| Capability | Implementation Status |
-|------------|----------------------|
-| **4 Brokers Supported** | ✅ Upstox, Groww, Dhan, Zerodha (plug-and-play adapters) |
-| **Fault Tolerance** | ✅ Staged per-symbol Parquet writes + automatic resume on restart |
-| **Architecture** | ✅ Adapter pattern + Registry → Zero-code broker onboarding |
-| **Data Model** | ✅ Medallion (Bronze → Silver) on local Parquet (S3 configurable) |
-| **Observability** | ✅ Structured JSON logs, request/response tracing |
-| **Cloud Native** | ✅ S3 upload via boto3, partition-pruned paths, IAM-ready |
-| **Multi-DB Ingestion** | ✅ ClickHouse, PostgreSQL, TimescaleDB with date check + rollback |
-| **Rate Limiting** | ✅ Adaptive per-broker token bucket with 429 backoff |
-| **Gold Layer** | 🚧 Planned (RSI, MACD, features, ML-ready universes) |
+| Capability | Status |
+|------------|--------|
+| **Broker** | ✅ Upstox only (adapter + parser registered) |
+| **Extraction** | ✅ Master instrument + per-symbol candles, staged Parquet writes, manifest-based resume |
+| **Transformation** | ✅ Bronze → Silver, equity/F&O segregation, session-bounds range filling |
+| **Ingestion** | ✅ Silver → ClickHouse, PostgreSQL, TimescaleDB (date check + rollback) |
+| **Cloud** | ✅ S3 push via boto3 (Bronze & Silver layers) |
+| **Orchestration** | ✅ Unified pipeline (`src/pipeline/main_orchestrator.py`) |
+| **Web UI** | ✅ FastAPI config editor + pipeline runner with live SSE logs (`src/api/`) |
+| **Config persistence** | ✅ UI writes `settings.yaml`, `broker_config.yaml`, `access_token.json`, `.env` |
+| **Gold layer** | ❌ Planned only |
 
 ---
 
@@ -84,183 +83,40 @@ flowchart TB
     classDef db fill:#312e81,stroke:#8b5cf6,color:#fff
 ```
 
-### Medallion Data Architecture (Parquet on Local/S3)
+
+## Data flow:
 
 ```
-marketdata-pipeline/
-├── bronze/                          # Raw, immutable, broker-native format
-│   ├── upstox/
-│   │   └── 2026-10-06/
-│   │       ├── NSE_INDEX.parquet
-│   │       ├── NSE_FO.parquet
-│   │       └── _staging/            # Per-symbol atomic writes (resume support)
-│   ├── dhan/
-│   ├── zerodha/
-│   └── groww/
-│
-├── silver/                          # Validated, typed, unified schema
-│   ├── upstox/
-│   │   └── 2026-10-06/
-│   │       ├── equity.parquet       # Standardized equity bars
-│   │       ├── fno.parquet          # Enriched F&O (underlying, expiry, strike, type)
-│   │       └── commodity.parquet
-│   └── ...
-│
-└── gold/                            # 🚧 Planned: Business-ready, ML features
-    ├── ohlcv_1m/                    # 1-min continuous bars
-    ├── ohlcv_5m/
-    ├── daily_bars/
-    ├── features/                    # RSI, MACD, ATR, VWAP, regime labels
-    └── universe/                    # Strategy-specific tradable universes
-```
+Upstox API (assets.upstox.com + api.upstox.com)
+    │
+    ▼
+extraction/main.py  (DailyDataExtractor)
+    │  ├── fetch master instrument (gzipped JSON)
+    │  ├── fetch candles per symbol (intraday / historical / expired)
+    │  └── staged Parquet writes + _manifest.parquet resume
+    ▼
+src/cache/upstox/Bronze/{date}/{segment}.parquet
+    │
+    ▼
+transformation/orchestrator.py  (Bronze → Silver)
+    │  ├── base_transformation
+    │  ├── IntradayRangeFiller (session bounds from broker_config.yaml)
+    │  ├── asset_segregation (equity CASH / fno FO)
+    │  └── equity_transformation / fno_transformation
+    ▼
+src/cache/upstox/Silver/{date}/{segment}_{EQUITY|FNO}.parquet
+    │
+    ▼
+ingestion/core/orchestrator.py  (Silver → DB)
+    │  ├── check_date_exists (skip already-ingested dates)
+    │  ├── create_table from SQL template
+    │  ├── ingest parquet in batches
+    │  └── delete_date_data rollback on failure
+    ▼
+ClickHouse / PostgreSQL / TimescaleDB
 
-**Partitioning Strategy:** `broker/date/segment.parquet` → enables partition pruning in Athena/Trino/Spark/ClickHouse  
-**Compression:** ZSTD Level 3 (optimal ratio/speed for columnar)  
-**Schema Evolution:** Embedded `schema_version` in Parquet metadata; readers handle forward/backward compatibility
-
----
-
-## ✨ Key Features Implemented
-
-### 🔌 Multi-Broker Adapter Pattern
-```python
-# Adding a new broker = 2 files, zero core changes
-@client_registry.register("new_broker")
-class NewBrokerAdapter(MarketDataProvider):
-    def _fetch_master_instrument(self): ...
-    def fetch_instrument(self, row, variation, date, interval): ...
-    def _normalize_response(self, response, context): ...
-
-@parser_registry.register("new_broker")
-class NewBrokerParser(InstrumentParser):
-    def parse(self, data) -> pl.DataFrame: ...
-```
-
-| Broker | Auth | Master Data | Historical API | Intervals |
-|--------|------|-------------|----------------|-----------|
-| **Upstox** | Bearer Token | JSON (gzipped) | REST GET | 1m–day |
-| **Groww** | Session Cookie | JSON | REST GET | 1m–day |
-| **Dhan** | Access Token | CSV (detailed) | REST POST | 1m, 5m, 15m, day |
-| **Zerodha** | API Key + Token | CSV (gzipped) | REST GET | 1m–day + continuous |
-
-### 🛡️ Fault-Tolerant Extraction (Staged Parquet + Resume)
-- **Per-symbol atomic writes** — each symbol → `segment_staging/{symbol}.parquet` (temp → rename)
-- **Automatic resume** — on restart, scans staging dir, skips completed symbols
-- **Segment-level completion** — final `{segment}.parquet` existence = segment done, skip entirely
-- **Empty markers** — symbols with no data get 0-row Parquet (tracks "attempted, no data")
-- **Consolidation** — after all symbols: `pl.concat([...])` → atomic final write
-
-```python
-# Zero Redis, zero external deps — pure file-based resilience
-staging_dir = base / f"{segment}_staging"
-staged_symbols = {f.stem for f in staging_dir.glob("*.parquet")}
-
-for symbol in unstaged_symbols:
-    candles = provider.fetch_instrument(...)
-    write_staging(symbol, candles)        # Atomic temp → rename
-
-consolidate_staging_to_final(staging_dir, final_parquet)
-```
-
-### 📊 Transformation & Enrichment
-- **Equity normalization** → unified schema (timestamp, symbol, OHLCV, exchange)
-- **F&O enrichment** → underlying symbol, expiry, strike, instrument_type (CE/PE/FUT)
-- **Symbol standardization** — `NIFTY 50` → `NIFTY50`, `BANK NIFTY` → `BANKNIFTY`
-- **Session-aware** — filters candles outside trading hours per segment
-
-### 📥 Multi-Database Ingestion Layer (ClickHouse, PostgreSQL, TimescaleDB) — **Checkpoint Feature**
-- **Date-existence check** — `check_date_exists(table, date)` skips already-ingested dates
-- **Transactional rollback** — on any segment failure, `delete_date_data(table, date)` rolls back ALL successful segments for that date
-- **Schema validation** — parquet columns validated against F&O/Equity templates before ingestion
-- **Template-based DDL** — SQL templates for F&O/Equity tables (ClickHouse/PostgreSQL/TimescaleDB)
-- **Unified flow** — identical ingestion logic across all three targets
-
-```python
-# Flow (identical for ClickHouse, PostgreSQL, TimescaleDB):
-# 1. check_date_exists() → skip if date exists
-# 2. Validate parquet schema against template
-# 3. Create table from template if needed
-# 4. Ingest data in batches
-# 5. On failure → delete_date_data() for ALL successful segments → full date rollback
-```
-
-### ☁️ Cloud Integration (S3)
-
-- **S3 upload** via `boto3` with multipart support
-- **Partitioned prefixes** — `bronze/upstox/2026-10-06/NSE_FO.parquet`
-- **IAM least-privilege** — write-only to `bronze/`, `silver/` prefixes
-- **Auto-credential resolution** — boto3 uses default credential chain (env vars → ~/.aws/credentials → IAM role)
-
-#### AWS Credentials Setup
-
-**Option 1: AWS CLI (Recommended)**
-```bash
-# Install AWS CLI
-pip install awscli
-# or
-brew install awscli  # macOS
-
-# Configure interactively
-aws configure
-
-# You'll be prompted for:
-# AWS Access Key ID [None]: YOUR_ACCESS_KEY_HERE
-# AWS Secret Access Key [None]: YOUR_SECRET_KEY_HERE
-# Default region name [None]: ap-south-1
-# Default output format [None]: json
-```
-
-**Option 2: Environment Variables**
-```bash
-export AWS_ACCESS_KEY_ID=***
-export AWS_SECRET_ACCESS_KEY=***
-export AWS_DEFAULT_REGION=ap-south-1
-```
-
-**Option 3: IAM Role (Production)**
-Attach IAM role with S3 permissions to EC2/ECS — no keys needed. boto3 auto-detects instance profile.
-
-#### S3 Bucket Setup
-```bash
-# Create bucket
-aws s3 mb s3://marketdata-pipeline --region ap-south-1
-
-# Verify
-aws s3 ls s3://marketdata-pipeline
-```
-
-#### IAM Policy (Least Privilege)
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [{
-    "Effect": "Allow",
-    "Action": [
-      "s3:PutObject",
-      "s3:PutObjectAcl"
-    ],
-    "Resource": "arn:aws:s3:::marketdata-pipeline/market_data_storage/*"
-  }]
-}
-```
-
-#### Settings Configuration
-```yaml
-cloud_settings:
-  client: "aws"
-  push_to_cloud: true
-  storage_name: "marketdata-pipeline"
-  destination_folder: "market_data_storage"
-```
-
-#### Path Structure in S3
-```
-s3://marketdata-pipeline/
-└── market_data_storage/
-    └── upstox/
-        └── 2026-10-06/
-            ├── NSE_FNO.parquet
-            └── NSE_EQ.parquet
+Cloud (parallel, controlled by cloud_settings.push_to_cloud):
+src/cache/upstox/{Bronze|Silver}/{date}/*.parquet  →  S3 (boto3, aws adapter)
 ```
 
 ---
@@ -270,61 +126,91 @@ s3://marketdata-pipeline/
 ```
 Market_Data_Pipeline/
 ├── src/
+│   ├── api/                              # FastAPI web UI & pipeline runner
+│   │   ├── main.py                       # FastAPI app (port 8115, CORS enabled)
+│   │   ├── config_routes.py              # Config editor + save endpoints
+│   │   │   ├── GET/POST /api/settings        (settings.yaml)
+│   │   │   ├── GET/POST /api/broker-config (broker_config.yaml)
+│   │   │   ├── GET/POST /api/env             (.env)
+│   │   │   ├── GET/POST /api/access-token  (access_token.json)
+│   │   │   ├── cloud/db env-field endpoints
+│   │   │   └── UI at /Pipelline_Dashboard  (Jinja2 + config_editor.html)
+│   │   ├── pipeline_routes.py            # Pipeline execution + SSE
+│   │   │   ├── POST /pipeline/run/extraction
+│   │   │   ├── POST /pipeline/run/transformation
+│   │   │   ├── POST /pipeline/run/cloud-push
+│   │   │   ├── POST /pipeline/run/ingestion
+│   │   │   ├── POST /pipeline/run/full
+│   │   │   ├── POST /pipeline/run/selected
+│   │   │   └── POST /pipeline/run/selected/stream  (live SSE logs)
+│   │   └── templates/config_editor.html  # Dark-mode single-page UI
 │   ├── extraction/
+│   │   ├── main.py                 # DailyDataExtractor (entry point for extraction)
 │   │   ├── clients/
-│   │   │   ├── adapters/          # Broker adapters (auto-discovered)
-│   │   │   │   ├── upstox.py
-│   │   │   │   ├── groww.py
-│   │   │   │   ├── dhan.py
-│   │   │   │   └── zerodha.py
-│   │   │   ├── base.py            # MarketDataProvider (retry, token mgmt)
-│   │   │   └── registry.py
-│   │   ├── parser/
-│   │   │   ├── adapters/          # Instrument parsers (auto-discovered)
-│   │   │   │   ├── upstox.py
-│   │   │   │   ├── groww.py
-│   │   │   │   ├── dhan.py
-│   │   │   │   └── zerodha.py
-│   │   │   └── base_parser.py
-│   │   ├── core/
-│   │   │   └── daily_data_extractor.py  # Orchestrates extraction + staged writes
-│   │   └── cache/                 # Staged parquet directories
-│   │
+│   │   │   ├── base.py             # MarketDataProvider (retry, token mgmt, session)
+│   │   │   ├── registry.py         # client_registry
+│   │   │   ├── register_and_discover.py
+│   │   │   └── adapters/
+│   │   │       └── upstox.py       # UpstoxAdapter (registered "upstox")
+│   │   └── parser/
+│   │       ├── base_parser.py
+│   │       ├── registry.py         # parser_registry
+│   │       ├── register_and_discover.py
+│   │       └── adapters/
+│   │           └── upstox.py       # Upstox instrument parser
 │   ├── transformation/
-│   │   ├── clients/adapters/      # Broker-specific transformers
-│   │   ├── core/                  # Normalizers, validators, converters
-│   │   └── orchestrator.py        # Bronze → Silver pipeline
-│   │
-│   ├── shared/
-│   │   ├── config/                # Pydantic settings + YAML
-│   │   ├── observability/         # Structured logging (JSON, context)
-│   │   ├── utils/                 # Session manager, yaml loader
-│   │   └── registry.py            # Generic plugin registry
-│   │
-│   ├── ingestion/                 # Multi-DB ingestion (ClickHouse, PostgreSQL, TimescaleDB)
+│   │   ├── orchestrator.py         # transform_data (Bronze → Silver)
 │   │   ├── clients/
-│   │   │   ├── adapters/
-│   │   │   │   ├── clickhouse.py    # check_date_exists, delete_date_data
-│   │   │   │   ├── postgresql.py    # Same flow, pg connection pool
-│   │   │   │   └── timescaledb.py   # Inherits PG, adds hypertable
-│   │   │   ├── base.py
-│   │   │   ├── discovery.py
-│   │   │   └── registry.py
+│   │   │   ├── base.py             # DataTransformer
+│   │   │   ├── registry.py         # transformer_registry
+│   │   │   ├── register_and_discover.py
+│   │   │   └── adapters/
+│   │   │       └── upstox.py       # UpstoxTransformationAdapter
 │   │   ├── core/
-│   │   │   └── orchestrator.py      # Date check + rollback logic
-│   │   └── schemas/               # SQL templates
-│   │       ├── fno_clickhouse.sql
+│   │   │   ├── normalizer.py
+│   │   │   ├── validator.py
+│   │   │   └── converter.py        # IntradayRangeFiller
+│   │   └── schemas/
+│   │       └── candle_schema.py
+│   ├── ingestion/
+│   │   ├── core/orchestrator.py    # IngestionOrchestrator (Silver → DB)
+│   │   ├── clients/
+│   │   │   ├── base.py             # DataIngestor
+│   │   │   ├── registry.py         # ingestion_registry
+│   │   │   ├── discovery.py
+│   │   │   └── adapters/
+│   │   │       ├── clickhouse.py
+│   │   │   ├── postgresql.py
+│   │   │   └── timescaledb.py
+│   │   └── schemas/
 │   │       ├── equity_clickhouse.sql
-│   │       ├── fno_postgresql.sql
-│   │       └── equity_postgresql.sql
-│   │
-│   └── cloud/                     # S3, GCS, Azure adapters
-│
-├── config/
-│   └── settings.yaml              # Single source of truth
-│
+│   │       ├── equity_postgresql.sql
+│   │       ├── fno_clickhouse.sql
+│   │       └── fo_postgresql.sql
+│   ├── pipeline/
+│   │   └── main_orchestrator.py    # PipelineOrchestrator (all phases)
+│   ├── cloud/
+│   │   ├── main.py                 # CloudOrchestrator (S3 push)
+│   │   ├── base.py
+│   │   ├── register_and_discover.py
+│   │   └── adapters/
+│   │       ├── aws.py
+│   │       ├── azure.py
+│   │       └── gcp.py
+│   ├── shared/
+│   │   ├── config/
+│   │   │   ├── settings.py         # get_application_settings()
+│   │   │   ├── settings_model.py   # pydantic models
+│   │   │   ├── settings.yaml       # single source of truth
+│   │   │   ├── broker_config.yaml  # per-broker segments, session bounds, symbol mapping
+│   │   │   └── access_token.json   # Upstox api_key + access_token (gitignored)
+│   │   ├── observability/          # structured JSON logging
+│   │   └── utils/                  # yaml_loader, registry, session_manager, utilities
+│   └── cache/                      # Bronze / Silver parquet output (gitignored data)
 ├── pyproject.toml
 ├── uv.lock
+├── .env                            # DB credentials (gitignored)
+├── .gitignore
 └── README.md
 ```
 
@@ -335,200 +221,121 @@ Market_Data_Pipeline/
 ### Prerequisites
 - **Python 3.11+**
 - **uv** (recommended) or pip
-- Broker API credentials (access tokens in `src/extraction/access_token/`)
+- Upstox API credentials in `src/shared/config/access_token.json`
 
 ### Installation
 ```bash
-git clone https://github.com/your-org/Market_Data_Pipeline.git
 cd Market_Data_Pipeline
 
-# Using uv (fast, reliable)
+# Using uv (recommended)
 uv sync
 
 # Or with pip
-pip install -e ".[dev]"
+pip install -e "."
 ```
 
-### Configuration
+### Configuration (`src/shared/config/settings.yaml`)
 ```yaml
-# config/settings.yaml
 extractor_settings:
-  client: "zerodha"                    # upstox | groww | dhan | zerodha
-  interval: 1                          # candle interval (minutes)
+  client: upstox
+  interval: 1
   max_retries: 3
-  expiry_duration: 3                   # months of F&O expiries
-  start_date: "2026-10-01"             # empty = today (intraday)
-  end_date: "2026-10-06"
-
-broker_configuration:
-  processable_segments:
-    - "NSE_EQ"
-    - "NSE_FNO"
-    - "BSE_EQ"
-    - "MCX_FNO"
-    # ...
+  expiry_duration: 3
+  start_date: "2026-11-23"   # empty = today (intraday)
+  end_date: "2026-11-23"
 
 ingestion_settings:
   enabled: true
-  target: "clickhouse"          # clickhouse | postgresql | timescaledb
+  target: clickhouse          # clickhouse | postgresql | timescaledb
   batch_size: 10000
   create_tables: true
+  segment_table_mapping:
+    NSE_INDEX_EQUITY: ''
+    NSE_FO_FNO: ''
+    MCX_FO_FNO: ''
+    BSE_INDEX_EQUITY: ''
+    BSE_FO_FNO: ''
+    BSE_EQ_EQUITY: ''
+    NSE_COM_FNO: ''
 
-  clickhouse:
-    host: ""
-    port: 8123
-    database: ""
-    username: ""
-    password: ""
-    secure: false
-    compression: true
-    connect_timeout: 10
-
-  postgresql:
-    host: ""
-    port: 5432
-    database: ""
-    username: ""
-    password: ""
-    pool_min: 1
-    pool_max: 10
-    connect_timeout: 10
-    ssl_mode: "prefer"
-
-  timescaledb:
-    host: ""
-    port: 5432
-    database: ""
-    username: ""
-    password: ""
-    pool_min: 1
-    pool_max: 10
-    connect_timeout: 10
-    ssl_mode: "prefer"
-    chunk_time_interval: "1 day"
+cloud_settings:
+  client: aws
+  push_to_cloud: true
+  storage_name: marketdata-pipeline
+  destination_folder: market_data_storage
 ```
 
-### Run Extraction (Bronze Layer)
+### Run the full pipeline(For daily windows cron job after setup)
 ```bash
-# Intraday (today)
-uv run python -m extraction.core.daily_data_extractor
-
-# Historical backfill
-# Set start_date/end_date in config, then run same command
-uv run python -m extraction.core.daily_data_extractor
+# Extraction → Cloud push → Transformation → Cloud push → DB ingestion
+uv run python src/pipeline/main_orchestrator.py
 ```
 
-### Run Transformation (Bronze → Silver)
+### Run extraction only (Bronze layer)
 ```bash
-uv run python -m transformation.orchestrator
+uv run python src/extraction/main.py
 ```
 
-### Run Ingestion (Silver → ClickHouse/PostgreSQL/TimescaleDB)
+Output lands in `src/cache/upstox/Bronze/{date}/{segment}.parquet` with a `_manifest.parquet` for resume.
+
+---
+
+### Running with the UI (recommended)
+
+Start the FastAPI server:
+
 ```bash
-# Ingest specific date (uses target from settings.yaml)
-uv run python -m ingestion.core.orchestrator /path/to/silver 2026-10-06 NSE_EQ NSE_FNO
-
-# Override target database
-uv run python -m ingestion.core.orchestrator /path/to/silver 2026-10-06 NSE_EQ NSE_FNO --target postgresql
-
-# Ingest with explicit table names
-uv run python -m ingestion.core.orchestrator /data/parquet/NSE_FNO.parquet --table market_data_nse_fno
-
-# CLI help
-uv run python -m ingestion.core.orchestrator --help
+uv run python src/api/main.py
+# or
+uvicorn src.api.main:app --host 0.0.0.0 --port 8115 --reload
 ```
 
-### Verify Output
+Open `http://localhost:8115/Pipelline_Dashboard` in your browser.
+
+The UI lets you:
+
+1. **Config editor** — edit `settings.yaml`, `broker_config.yaml` (segments, session bounds, symbol mapping per broker), `.env` (ClickHouse/PostgreSQL/TimescaleDB/AWS fields), and `access_token.json` (api_key + access_token). Changes are written to disk and `app_settings` is reloaded immediately.
+2. **Run pipeline** — select phases (extraction → cloud push → transformation → cloud push → ingestion) and run them. Full and selected-phase runs are supported.
+3. **Live logs** — the `/run/selected/stream` endpoint streams phase start/complete and log lines via SSE while phases run.
+
+### Running from CLI (no UI)
+
 ```bash
-# Check Bronze
-ls -la src/extraction/cache/zerodha/Bronze/2026-10-06/
-
-# Check Silver
-ls -la src/transformation/cache/zerodha/Silver/2026-10-06/
+# Full pipeline: extraction → cloud push → transform → cloud push → ingestion
+uv run python src/pipeline/main_orchestrator.py
 ```
+
+---
+
+## 🔐 Credentials(Will be saved by ui when you save it for the first time)
+
+- `src/shared/config/access_token.json` — Upstox `api_key` + `access_token` (gitignored, fill in your own)
+- `.env` — ClickHouse / PostgreSQL / TimescaleDB connection strings (gitignored)
 
 ---
 
 ## 🧪 Testing & Quality
 
 ```bash
-# Type checking (strict)
-uv run mypy src/
-
-# Linting & formatting
 uv run ruff check src/
 uv run ruff format src/
-
-# Pre-commit (all checks)
-uv run pre-commit run --all-files
+uv run mypy src/
 ```
 
-> **Note:** Unit/integration tests directory not yet created — planned for next phase.
-
----
-
-## 📈 Performance Benchmarks
-
-| Workload | Instruments | Time | Throughput |
-|----------|-------------|------|------------|
-| Intraday (1m) | 10,000 | ~90s | 111 sym/s |
-| Historical (1 day) | 10,000 | ~3m | 55 sym/s |
-| Bronze → Silver | 50k rows/segment | ~15s | 3.3k rows/s |
-| S3 Upload | 50MB segment | ~8s | 6 MB/s |
-
-> Measured on c6i.2xlarge (8 vCPU, 16 GB) with 100 Mbps network.  
-> Rate limiting is the primary bottleneck — scale horizontally with multiple workers.
-
----
-
-## 🔐 Security & Operations
-
-| Concern | Implementation |
-|---------|----------------|
-| **Secrets** | No tokens in code — JSON files in `access_token/` (gitignored), supports AWS Secrets Manager |
-| **Network** | VPC endpoints for S3; broker APIs via allowlisted egress |
-| **IAM** | Least-privilege S3 policies (write-only to `bronze/`, `silver/` prefixes) |
-| **Audit** | Structured JSON logs with request_id, broker, symbol, latency, status |
-| **Data Quality** | Per-candle validation (OHLC bounds, volume ≥ 0, timestamp monotonic) |
-
----
-
-## 👨‍💻 Author
-
-**Ronak Kumar Gupta** — Software Developer Engineer-1 (3+ years)  
-📍 New Delhi, India | 📧 ronakkumar528@gmail.com | 💼 [LinkedIn](www.linkedin.com/in/ronak-gupta-321177179)
-
-> **Core competencies:** Low-latency market data pipelines (Upstox WebSocket), distributed options backtesting (Polars/ClickHouse/Celery), quant research platforms (FastAPI/Streamlit), Python async, system design, data engineering.
+> No test suite yet — planned.
 
 ---
 
 ## 🗺 Roadmap
 
-- [ ] **Gold Layer** — RSI, MACD, ATR, VWAP, regime labels, ML-ready universes
-- [ ] **Rate Limiter Re-add** — Adaptive per-broker token bucket with 429 backoff
-- [ ] **Async Extraction** — aiohttp + semaphore for 5–10× throughput
-- [ ] **Async Ingestion** — async inserts for all targets (ClickHouse, PostgreSQL, TimescaleDB)
-- [ ] **Schema Registry** — Confluent/Avro for contract enforcement across layers
-- [ ] **Airflow/Dagster Orchestration** — DAG-based scheduling, retries, SLAs
-- [ ] **Data Quality Dashboard** — Great Expectations + Grafana
-- [ ] **CDC for Instrument Master** — Incremental updates, not daily full reload
-- [ ] **Unit/Integration Tests** — pytest + contract tests for API responses
-
----
-
-## 🤝 Contributing
-
-1. **Fork** → feature branch → PR
-2. **All PRs require:** tests, type hints, `ruff`/`mypy` clean
-3. **Follow adapter patterns** for new brokers (see `dhan.py`, `zerodha.py`)
-4. **Update README** for new features
+- [ ] Groww / Dhan / Zerodha adapters (multi-broker)
+- [ ] Gold layer — RSI, MACD, ATR, VWAP, regime labels, ML-ready universes
+- [ ] Async extraction (aiohttp + semaphore)
+- [ ] Unit/integration tests (pytest + contract tests)
+- [ ] Airflow/Dagster orchestration
 
 ---
 
 ## 📄 License
 
 MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-⭐ **Star this repo** if you find it useful — it helps with visibility and motivation to keep improving!

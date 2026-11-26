@@ -1,26 +1,23 @@
+"""Logging handlers for console and file output."""
+
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
-from shared.observability.formatter import JsonFormatter, TextFormatter
+from shared.observability.formatter import CleanTextFormatter, CompactTextFormatter
 from shared.observability.logging_config import logging_settings
 
 
 def create_console_handler() -> logging.Handler:
+    """Create a console handler with compact formatting."""
     handler = logging.StreamHandler()
     handler.setLevel(logging_settings.console.level)
-
-    formatter = (
-        JsonFormatter()
-        if logging_settings.format.type.lower() == "json"
-        else TextFormatter()
-    )
-
-    handler.setFormatter(formatter)
+    handler.setFormatter(CompactTextFormatter())
     return handler
 
 
 def create_file_handler() -> logging.Handler:
+    """Create a rotating file handler with detailed formatting."""
     log_dir = Path(logging_settings.file.directory)
     log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -33,12 +30,5 @@ def create_file_handler() -> logging.Handler:
     )
 
     handler.setLevel(logging_settings.file.level)
-
-    formatter = (
-        JsonFormatter()
-        if logging_settings.format.type.lower() == "json"
-        else TextFormatter()
-    )
-
-    handler.setFormatter(formatter)
+    handler.setFormatter(CleanTextFormatter())
     return handler

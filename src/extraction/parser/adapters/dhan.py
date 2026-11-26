@@ -1,7 +1,6 @@
 from extraction.parser import InstrumentParser, parser_registry
 import polars as pl
 from shared.observability import get_logger
-import re
 
 logger = get_logger(__name__)
 
@@ -16,29 +15,31 @@ class DhanInstrumentParser(InstrumentParser):
 
     # Dhan segment codes from instrument master
     AVAILABLE_SEGMENTS = [
-        "NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO", 
+        "NSE_EQ", "NSE_FNO", "BSE_EQ", "BSE_FNO",
         "NSE_IDX", "BSE_IDX", "MCX_FNO", "MCX_COM",
         "NSE_CUR", "BSE_CUR", "NSE_COM", "BSE_COM"
     ]
 
     def parse(self, data) -> pl.DataFrame:
-        logger.info("Parsing Dhan instrument data", extra={"input_type": type(data).__name__, "input_length": len(data) if hasattr(data, '__len__') else "unknown"})
+        input_type = type(data).__name__
+        input_length = len(data) if hasattr(data, '__len__') else "unknown"
+        logger.info(f"Parsing Dhan instrument data: input_type={input_type}, input_length={input_length}")
         df = pl.DataFrame(data)
         result = self._normalize(df)
-        logger.info("Dhan instrument parsing complete", extra={"rows": result.height})
+        logger.info(f"Dhan instrument parsing complete: rows={result.height}")
         return result
 
     def _normalize(self, df: pl.DataFrame) -> pl.DataFrame:
-        logger.debug("Normalizing Dhan instrument schema", extra={"input_columns": df.columns, "input_rows": df.height})
-        
+        logger.debug(f"Normalizing Dhan instrument schema: input_columns={df.columns}, input_rows={df.height}")
+
         # Validate required columns exist
-        required_cols = ["SECURITY_ID", "EXCH_ID", "SEGMENT", "INSTRUMENT", 
+        required_cols = ["SECURITY_ID", "EXCH_ID", "SEGMENT", "INSTRUMENT",
                          "SYMBOL_NAME", "SEM_TRADING_SYMBOL", "DISPLAY_NAME", "INSTRUMENT_TYPE"]
-        
+
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
-            logger.warning("Some expected columns missing from Dhan data", extra={"missing": missing})
-        
+            logger.warning(f"Some expected columns missing from Dhan data: missing={missing}")
+
         # Rename columns to match expected schema
         column_mapping = {
             "SECURITY_ID": "instrument_key",
@@ -62,20 +63,20 @@ class DhanInstrumentParser(InstrumentParser):
 
             "SEM_TRADING_SYMBOL": "trading_symbol",
         }
-        
+
         # Apply renaming for columns that exist
         rename_dict = {k: v for k, v in column_mapping.items() if k in df.columns}
         df = df.rename(rename_dict)
-        
+
         # Create standardized segment field
         df = self._create_segment_field(df)
-        
+
         # Create trading_symbol
         df = self._create_trading_symbol(df)
-        
-        df = self._validate_symbols(df)        
 
-        logger.debug("Dhan schema normalization complete", extra={"output_columns": df.columns, "output_rows": df.height})
+        df = self._validate_symbols(df)
+
+        logger.debug(f"Dhan schema normalization complete: output_columns={df.columns}, output_rows={df.height}")
         return df
 
     def _create_segment_field(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -83,7 +84,7 @@ class DhanInstrumentParser(InstrumentParser):
         # Dhan segment codes: E=Equity, D=Derivatives, I=Index, C=Currency, M=Commodity
         # Exchange: NSE, BSE, MCX
         df = df.with_columns((pl.col("exchange") + "_" + pl.col("segment_code")).alias("exchange_segment"))
-        
+
         segment_expr = (
             pl.when(pl.col("exchange") == "NSE").then(
                 pl.when(pl.col("segment_code") == "E").then(pl.lit("NSE_EQ"))
@@ -108,7 +109,7 @@ class DhanInstrumentParser(InstrumentParser):
             )
             .otherwise(pl.lit("None"))
         )
-        
+
         return df.with_columns(segment_expr.alias("segment"))
 
     def _create_trading_symbol(self, df: pl.DataFrame) -> pl.DataFrame:
@@ -165,12 +166,12 @@ class DhanInstrumentParser(InstrumentParser):
             )
             .list.join("-")
         )
-        
+
         return df.with_columns(trading_expr.alias("trading_symbol"))
 
     def _validate_symbols(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Extracts components using strict regex patterns and reassembles them 
+        Extracts components using strict regex patterns and reassembles them
         to create the symbol_name (excluding the exchange).
         """
         EQUITY_PATTERN = r"^(?P<underlying>[A-Za-z0-9& _-]+)$"
@@ -184,13 +185,13 @@ class DhanInstrumentParser(InstrumentParser):
             symbol_name=(
                 pl.when(pl.col("trading_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(OPTION_PATTERN, "$1-$4-$2-$3").str.replace_all(" ", ""))
-                
+
                 .when(pl.col("trading_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(FUTURE_PATTERN, "$1-$2-FUT").str.replace_all(" ", ""))
-                
+
                 .when(pl.col("trading_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.col("trading_symbol").str.replace(EQUITY_PATTERN, "$1"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             ).str.to_uppercase(),
 
@@ -200,13 +201,13 @@ class DhanInstrumentParser(InstrumentParser):
             symbol_asset_class=(
                 pl.when(pl.col("trading_symbol").str.contains(OPTION_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("trading_symbol").str.contains(FUTURE_PATTERN).fill_null(False))
                 .then(pl.lit("FO"))
-                
+
                 .when(pl.col("trading_symbol").str.contains(EQUITY_PATTERN).fill_null(False))
                 .then(pl.lit("CASH"))
-                
+
                 .otherwise(pl.lit(None, dtype=pl.String))
             )
 
@@ -222,10 +223,10 @@ class DhanInstrumentParser(InstrumentParser):
 
         # THE SECURITY LAYER: Catch the broken schemas before they are dropped
         invalid_rows = temp_df.filter(pl.col("symbol_name").is_null())
-    
+
         if not invalid_rows.is_empty():
             bad_samples = invalid_rows["trading_symbol"].head(5).to_list()
-            logger.warning(f"Invalid rows found in the master insrument symbol processing, lengh of invalid rows are {len(invalid_rows)}")
+            logger.warning(f"Invalid rows found in master instrument symbol processing, length={len(invalid_rows)}")
             if len(invalid_rows) > 100:
                 raise InstrumentValidationError(
                     f"CRITICAL: Schema mutation detected! {invalid_rows.height} symbols failed regex validation.\n"
